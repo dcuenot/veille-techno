@@ -15,7 +15,7 @@ Outil de veille technologique et actualités générales qui génère chaque mat
      7h30                7h35                 7h45                Capteur
 ```
 
-4 composants indépendants, exécutés séquentiellement par un orchestrateur.
+5 composants indépendants, exécutés séquentiellement par un orchestrateur.
 
 ## Composants
 
@@ -29,8 +29,8 @@ Récupère les articles des dernières 24h depuis des sources configurables.
 |-----------|---------|---------|
 | Actu France | Le Monde, France Info, Les Échos | RSS |
 | Actu internationale | Reuters, BBC News | RSS |
-| Tech généraliste | Hacker News, TechCrunch | API HN + RSS |
-| Dev/Engineering | GitHub Trending, dev.to | RSS + API GitHub |
+| Tech généraliste | Hacker News, TechCrunch | API Algolia HN + RSS |
+| Dev/Engineering | GitHub Trending, dev.to | Scraping HTML + RSS |
 | IA/ML | Papers with Code, blogs Anthropic/OpenAI/Google DeepMind | RSS |
 | Cloud/Infra | AWS What's New, Google Cloud Blog | RSS |
 | Sécu | The Hacker News (security) | RSS |
@@ -38,8 +38,9 @@ Récupère les articles des dernières 24h depuis des sources configurables.
 **Fonctionnement :**
 - Chaque source implémente une interface commune : `fetch() -> list[Article]`
 - Configuration des sources via fichier YAML
-- Déduplication par URL et similarité de titre
-- Filtre temporel : dernières 24h uniquement
+- Déduplication par URL et similarité de titre (fuzzy match sur les titres, seuil 80%)
+- Filtre temporel : dernières 24h uniquement (timezone Europe/Paris)
+- Chaque article est tronqué à 500 caractères max pour l'extrait
 - Résultat : ~30-50 articles bruts transmis à l'éditeur IA
 
 ### 2. Météo
@@ -51,7 +52,7 @@ Récupère les articles des dernières 24h depuis des sources configurables.
 
 ### 3. Éditeur IA (Claude)
 
-Sélectionne les 10-15 news les plus pertinentes et rédige un briefing éditorialisé.
+Reçoit les ~30-50 articles et sélectionne les meilleurs : 3-5 actu générale + 10 tech, soit 13-15 au total. Rédige un briefing éditorialisé.
 
 **Modèle :** Claude Haiku 4.5 par défaut (configurable pour Sonnet si besoin).
 
@@ -65,22 +66,24 @@ Sélectionne les 10-15 news les plus pertinentes et rédige un briefing éditori
   5. Outro : "Bonne journée, et à demain."
 - Consignes : phrases courtes adaptées à l'oral, pas de jargon non expliqué, pas d'URLs
 
-**Input :** Liste d'articles (titre, source, date, résumé/extrait) + données météo.
-**Output :** Texte brut du briefing, prêt pour le TTS.
+**Input :** Liste d'articles (titre, source, date, résumé/extrait tronqué à 500 chars) + données météo. Budget total prompt : ~20K tokens max.
+**Output :** Texte brut du briefing, prêt pour le TTS. Utilisation du mode JSON (structured output) pour séparer le contenu éditorial des métadonnées, puis application d'un template SSML déterministe.
 
 ### 4. Générateur audio (Amazon Polly)
 
 - Voix : Léa (français, Neural). Alternative : Rémi (masculin). Configurable.
 - Format SSML pour le rythme : pauses entre blocs (`<break>`), emphase sur les titres
+- **Chunking SSML :** Polly limite à 3 000 caractères par requête. Le texte est découpé en segments SSML valides (sans couper de balise), chaque segment est synthétisé séparément, puis les MP3 sont concaténés via pydub/ffmpeg.
+- Interface commune `synthesize(text: str, voice: str) -> Path` pour permettre le swap vers ElevenLabs ou Piper.
 - Sortie : fichier MP3 nommé par date (`briefing-2026-03-12.mp3`)
 - Nettoyage automatique des fichiers de plus de 7 jours
 
 ### 5. Diffuseur (Home Assistant)
 
-- Dépôt du MP3 dans `/config/www/briefings/` de Home Assistant
+- Le script Python tourne sur le même Raspberry Pi que Home Assistant. Le MP3 est écrit directement dans `/config/www/briefings/` (écriture fichier locale).
 - Le fichier est accessible via `http://<HA_IP>:8123/local/briefings/briefing-YYYY-MM-DD.mp3`
 - Prérequis : intégration Alexa Media Player installée via HACS
-- Déclenchement de la lecture par automatisation HA (capteur de présence/réveil)
+- Déclenchement de la lecture par automatisation HA (capteur de présence/réveil). L'automatisation HA est **hors scope** de ce projet (l'utilisateur la configure côté HA).
 - Volume configurable via `media_player.volume_set`
 - Multi-room possible (configurable)
 
@@ -111,6 +114,29 @@ veille-techno/
 ├── .env.example               # ANTHROPIC_API_KEY, AWS creds, OWM key, HA token
 └── README.md
 ```
+
+## Résilience et gestion d'erreurs
+
+- **Collecteur :** Si une source RSS échoue, le pipeline continue avec les sources restantes. Minimum 5 articles requis pour générer un briefing, sinon abandon avec notification.
+- **Météo :** Si OpenWeatherMap est indisponible, le bloc météo est omis du briefing.
+- **Claude API :** 2 tentatives avec backoff exponentiel. Si échec, pas de briefing ce jour.
+- **Polly :** 2 tentatives par chunk. Si un chunk échoue, abandon avec notification.
+- **Notification d'échec :** En cas d'échec du pipeline, envoi d'une notification persistante via l'API HA (service `notify`).
+
+## Logging et observabilité
+
+- Logging via le module `logging` Python, niveau INFO par défaut (configurable).
+- Fichier de log rotatif dans `/config/logs/veille-techno.log` (rétention 7 jours).
+- Chaque étape du pipeline logge sa durée d'exécution et le nombre d'éléments traités.
+- En cas d'erreur : log ERROR avec traceback complet + notification HA.
+
+## Environnement technique
+
+- **Python :** >= 3.11
+- **Gestion des dépendances :** venv + requirements.txt (pip)
+- **Timezone :** Europe/Paris (configuré explicitement dans le code)
+- **Dépendances principales :** feedparser, anthropic, boto3, pydub, requests, python-dotenv, pyyaml
+- **Dépendance système :** ffmpeg (pour la concaténation audio via pydub)
 
 ## Scheduling
 
@@ -149,4 +175,4 @@ veille-techno/
 - TTS swappable : architecture avec interface commune, possibilité de passer sur ElevenLabs ou Piper
 - Modèle Claude configurable (Haiku → Sonnet → Opus)
 - Sources ajoutables via YAML sans modification de code (pour les sources RSS)
-- Format podcast RSS ajoutables en complément
+- Publication en podcast RSS : possibilité d'exposer un feed RSS avec les épisodes MP3 pour écoute sur une app podcast
