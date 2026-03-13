@@ -1,0 +1,197 @@
+"""Veille Techno — Main pipeline orchestrator.
+
+Usage: python -m src.orchestrator [--config path/to/settings.yaml]
+"""
+from __future__ import annotations
+
+import argparse
+import logging
+import time
+from datetime import date
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
+
+from src.config import Settings, load_config
+from src.collector.base import Article, Source
+from src.collector.rss import RSSSource
+from src.collector.hackernews import HackerNewsSource
+from src.collector.github_trending import GitHubTrendingSource
+from src.collector.dedup import deduplicate
+from src.weather.forecast import fetch_weather
+from src.editor.briefing import generate_briefing
+from src.editor.ssml import build_ssml
+from src.audio.polly import PollyTTS
+from src.publisher.homeassistant import HomeAssistantPublisher
+
+logger = logging.getLogger("veille_techno")
+
+MIN_ARTICLES = 5
+
+
+def _setup_logging(settings: Settings) -> None:
+    """Configure rotating file + console logging."""
+    log_dir = Path(settings.logging.log_dir)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    file_handler = RotatingFileHandler(
+        log_dir / "veille-techno.log", maxBytes=5_000_000, backupCount=7,
+    )
+    console_handler = logging.StreamHandler()
+    formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    file_handler.setFormatter(formatter)
+    console_handler.setFormatter(formatter)
+    root_logger = logging.getLogger()
+    root_logger.setLevel(getattr(logging, settings.logging.level, logging.INFO))
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(console_handler)
+
+
+def _build_sources(settings: Settings) -> list[Source]:
+    """Build source instances from config."""
+    sources: list[Source] = []
+    for src_cfg in settings.sources:
+        if src_cfg.type == "rss":
+            sources.append(RSSSource(name=src_cfg.name, category=src_cfg.category, url=src_cfg.url))
+        elif src_cfg.type == "hackernews":
+            sources.append(HackerNewsSource(name=src_cfg.name, category=src_cfg.category))
+        elif src_cfg.type == "github_trending":
+            sources.append(GitHubTrendingSource(name=src_cfg.name, category=src_cfg.category))
+    return sources
+
+
+def collect_all(sources: list[Source]) -> list[Article]:
+    """Fetch from all sources and deduplicate."""
+    start = time.monotonic()
+    all_articles: list[Article] = []
+    for source in sources:
+        try:
+            articles = source.fetch()
+            all_articles.extend(articles)
+            logger.info("  %s: %d articles", source.name, len(articles))
+        except Exception:
+            logger.warning("  %s: FAILED", source.name, exc_info=True)
+    deduped = deduplicate(all_articles)
+    elapsed = time.monotonic() - start
+    logger.info(
+        "Collection complete: %d raw -> %d deduped in %.1fs",
+        len(all_articles), len(deduped), elapsed,
+    )
+    return deduped
+
+
+def run_pipeline(config_path: Path) -> None:
+    """Execute the full briefing pipeline."""
+    settings = load_config(config_path)
+    _setup_logging(settings)
+    logger.info("=== Veille Techno pipeline started ===")
+
+    publisher = HomeAssistantPublisher(
+        ha_media_dir=settings.publisher.ha_media_dir,
+        ha_url=settings.secrets.ha_url,
+        ha_token=settings.secrets.ha_token,
+        media_player_entity=settings.publisher.media_player_entity,
+    )
+
+    try:
+        logger.info("Step 1: Collecting articles...")
+        sources = _build_sources(settings)
+        articles = collect_all(sources)
+
+        if len(articles) < MIN_ARTICLES:
+            msg = f"Not enough articles ({len(articles)}/{MIN_ARTICLES})"
+            logger.warning(msg)
+            publisher.notify_failure(msg)
+            return
+
+        logger.info("Step 2: Fetching weather...")
+        weather = fetch_weather(
+            lat=settings.weather.lat,
+            lon=settings.weather.lon,
+            api_key=settings.secrets.owm_api_key,
+        )
+        if weather:
+            logger.info("Weather: %s, %.0f°C", weather.description, weather.temp_current)
+        else:
+            logger.warning("Weather unavailable — will be omitted")
+
+        logger.info("Step 3: Generating briefing...")
+        start = time.monotonic()
+        segments = generate_briefing(
+            articles=articles,
+            weather=weather,
+            api_key=settings.secrets.anthropic_api_key,
+            model=settings.editor.model,
+            max_general_news=settings.editor.max_general_news,
+            max_tech_news=settings.editor.max_tech_news,
+        )
+        logger.info("Briefing: %d segments in %.1fs", len(segments), time.monotonic() - start)
+
+        logger.info("Step 4: Synthesizing audio...")
+        ssml = build_ssml(segments)
+        tts = PollyTTS(voice=settings.audio.voice, output_dir=settings.audio.output_dir)
+        today = date.today().isoformat()
+        mp3_path = tts.synthesize(ssml, f"briefing-{today}")
+
+        logger.info("Step 5: Publishing to Home Assistant...")
+        publisher.publish(mp3_path)
+        publisher.cleanup(retention_days=settings.audio.retention_days)
+
+        logger.info("=== Pipeline complete ===")
+
+    except Exception as e:
+        logger.error("Pipeline failed: %s", e, exc_info=True)
+        publisher.notify_failure(f"Pipeline failed: {e}")
+
+
+def run_dry_run(config_path: Path) -> None:
+    """Validate config, test API keys, and source connectivity."""
+    settings = load_config(config_path)
+    _setup_logging(settings)
+    logger.info("=== Dry run ===")
+    errors: list[str] = []
+    if not settings.secrets.anthropic_api_key:
+        errors.append("ANTHROPIC_API_KEY not set")
+    if not settings.secrets.owm_api_key:
+        errors.append("OWM_API_KEY not set")
+    if not settings.secrets.ha_token:
+        errors.append("HA_TOKEN not set")
+    sources = _build_sources(settings)
+    logger.info("Configured %d sources", len(sources))
+    weather = fetch_weather(
+        lat=settings.weather.lat,
+        lon=settings.weather.lon,
+        api_key=settings.secrets.owm_api_key,
+    )
+    if weather:
+        logger.info("Weather OK: %s", weather.description)
+    else:
+        errors.append("Weather API failed")
+    if errors:
+        for e in errors:
+            logger.error("  %s", e)
+        logger.error("Dry run FAILED")
+    else:
+        logger.info("Dry run OK — all checks passed")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Veille Techno Briefing")
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=Path("config/settings.yaml"),
+        help="Path to settings.yaml",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Validate config and test API connectivity",
+    )
+    args = parser.parse_args()
+    if args.dry_run:
+        run_dry_run(args.config)
+    else:
+        run_pipeline(args.config)
+
+
+if __name__ == "__main__":
+    main()
