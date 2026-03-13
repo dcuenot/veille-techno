@@ -1,15 +1,18 @@
-#!/usr/bin/with-contenv bashio
+#!/bin/bash
+set -e
 
-bashio::log.info "=== Veille Techno add-on starting ==="
+echo "=== Veille Techno add-on starting ==="
 
-# Read options from HA add-on config
-ANTHROPIC_API_KEY=$(bashio::config 'anthropic_api_key')
-AWS_ACCESS_KEY_ID=$(bashio::config 'aws_access_key_id')
-AWS_SECRET_ACCESS_KEY=$(bashio::config 'aws_secret_access_key')
-AWS_DEFAULT_REGION=$(bashio::config 'aws_default_region')
-OWM_API_KEY=$(bashio::config 'owm_api_key')
-SCHEDULE_HOUR=$(bashio::config 'schedule_hour')
-SCHEDULE_MINUTE=$(bashio::config 'schedule_minute')
+OPTIONS_FILE="/data/options.json"
+
+# Read options via jq
+ANTHROPIC_API_KEY=$(jq -r '.anthropic_api_key' "$OPTIONS_FILE")
+AWS_ACCESS_KEY_ID=$(jq -r '.aws_access_key_id' "$OPTIONS_FILE")
+AWS_SECRET_ACCESS_KEY=$(jq -r '.aws_secret_access_key' "$OPTIONS_FILE")
+AWS_DEFAULT_REGION=$(jq -r '.aws_default_region' "$OPTIONS_FILE")
+OWM_API_KEY=$(jq -r '.owm_api_key' "$OPTIONS_FILE")
+SCHEDULE_HOUR=$(jq -r '.schedule_hour' "$OPTIONS_FILE")
+SCHEDULE_MINUTE=$(jq -r '.schedule_minute' "$OPTIONS_FILE")
 
 export ANTHROPIC_API_KEY
 export AWS_ACCESS_KEY_ID
@@ -22,15 +25,17 @@ export HA_URL="http://supervisor/core"
 export HA_TOKEN="${SUPERVISOR_TOKEN}"
 
 # Generate settings.yaml from add-on options
-POLLY_VOICE=$(bashio::config 'polly_voice')
-WEATHER_CITY=$(bashio::config 'weather_city')
-WEATHER_LAT=$(bashio::config 'weather_lat')
-WEATHER_LON=$(bashio::config 'weather_lon')
-MEDIA_PLAYER=$(bashio::config 'media_player_entity')
-EDITOR_MODEL=$(bashio::config 'editor_model')
-MAX_GENERAL=$(bashio::config 'max_general_news')
-MAX_TECH=$(bashio::config 'max_tech_news')
-LOG_LEVEL=$(bashio::config 'log_level')
+POLLY_VOICE=$(jq -r '.polly_voice' "$OPTIONS_FILE")
+WEATHER_CITY=$(jq -r '.weather_city' "$OPTIONS_FILE")
+WEATHER_LAT=$(jq -r '.weather_lat' "$OPTIONS_FILE")
+WEATHER_LON=$(jq -r '.weather_lon' "$OPTIONS_FILE")
+MEDIA_PLAYER=$(jq -r '.media_player_entity' "$OPTIONS_FILE")
+EDITOR_MODEL=$(jq -r '.editor_model' "$OPTIONS_FILE")
+MAX_GENERAL=$(jq -r '.max_general_news' "$OPTIONS_FILE")
+MAX_TECH=$(jq -r '.max_tech_news' "$OPTIONS_FILE")
+LOG_LEVEL=$(jq -r '.log_level' "$OPTIONS_FILE")
+
+mkdir -p /app/config /app/output /app/logs /media/veille-techno
 
 cat > /app/config/settings.yaml << YAML
 timezone: "Europe/Paris"
@@ -94,13 +99,11 @@ sources:
     url: ""
 YAML
 
-mkdir -p /app/config /app/output /app/logs /media/veille-techno
-
-bashio::log.info "Configuration generated"
-bashio::log.info "Schedule: every day at ${SCHEDULE_HOUR}:${SCHEDULE_MINUTE}"
+echo "Configuration generated"
+echo "Schedule: every day at ${SCHEDULE_HOUR}:${SCHEDULE_MINUTE}"
 
 # Run once at startup
-bashio::log.info "Running initial briefing..."
+echo "Running initial briefing..."
 cd /app && python3 -m src.orchestrator --config config/settings.yaml 2>&1 || true
 
 # Set up cron
@@ -108,7 +111,7 @@ CRON_LINE="${SCHEDULE_MINUTE} ${SCHEDULE_HOUR} * * * cd /app && ANTHROPIC_API_KE
 
 echo "${CRON_LINE}" | crontab -
 
-bashio::log.info "Cron scheduled. Waiting..."
+echo "Cron scheduled. Waiting..."
 
 # Keep container alive and run cron in foreground
 crond -f

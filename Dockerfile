@@ -5,7 +5,8 @@ RUN apk add --no-cache \
     python3 \
     py3-pip \
     ffmpeg \
-    dcron
+    dcron \
+    jq
 
 WORKDIR /app
 
@@ -18,4 +19,5 @@ COPY run.sh /
 
 RUN chmod a+x /run.sh
 
+ENTRYPOINT []
 CMD [ "/run.sh" ]
