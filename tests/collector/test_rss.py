@@ -1,7 +1,9 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from unittest.mock import patch, MagicMock
 
-from src.collector.rss import RSSSource
+import requests
+
+from src.collector.rss import RSSSource, LOOKBACK_WINDOW
 
 
 SAMPLE_FEED = """<?xml version="1.0" encoding="UTF-8"?>
@@ -26,6 +28,9 @@ SAMPLE_FEED = """<?xml version="1.0" encoding="UTF-8"?>
 
 @patch("src.collector.rss.requests.get")
 def test_rss_source_fetches_articles(mock_get: MagicMock):
+    # Feed dates are 2026-03-12, so we freeze "now" to be within the lookback window
+    frozen_now = datetime(2026, 3, 12, 12, 0, tzinfo=timezone.utc)
+
     mock_response = MagicMock()
     mock_response.status_code = 200
     mock_response.content = SAMPLE_FEED.encode()
@@ -36,7 +41,10 @@ def test_rss_source_fetches_articles(mock_get: MagicMock):
         category="tech",
         url="https://example.com/feed",
     )
-    articles = source.fetch()
+
+    with patch("src.collector.rss.datetime", wraps=datetime) as mock_dt:
+        mock_dt.now.return_value = frozen_now
+        articles = source.fetch()
 
     assert len(articles) == 2
     assert articles[0].title == "Article One"
@@ -47,7 +55,7 @@ def test_rss_source_fetches_articles(mock_get: MagicMock):
 
 @patch("src.collector.rss.requests.get")
 def test_rss_source_returns_empty_on_error(mock_get: MagicMock):
-    mock_get.side_effect = Exception("Network error")
+    mock_get.side_effect = requests.exceptions.ConnectionError("Network error")
 
     source = RSSSource(
         name="Test Feed",

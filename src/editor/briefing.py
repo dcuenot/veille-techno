@@ -76,15 +76,9 @@ def generate_briefing(
                 BriefingSegment(type=s["type"], text=s["text"])
                 for s in data["segments"]
             ]
-        except (json.JSONDecodeError, KeyError, IndexError) as e:
+        except (json.JSONDecodeError, KeyError, IndexError, anthropic.APIError) as e:
             logger.warning(
-                "Briefing parse error (attempt %d): %s", attempt + 1, e
-            )
-            if attempt < MAX_RETRIES - 1:
-                time.sleep(2 ** attempt)
-        except anthropic.APIError as e:
-            logger.warning(
-                "Claude API error (attempt %d): %s", attempt + 1, e
+                "Briefing error (attempt %d): %s", attempt + 1, e
             )
             if attempt < MAX_RETRIES - 1:
                 time.sleep(2 ** attempt)

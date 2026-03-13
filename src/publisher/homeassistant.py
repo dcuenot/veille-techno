@@ -37,7 +37,7 @@ class HomeAssistantPublisher:
         """Send a persistent notification via HA API."""
         url = f"{self.ha_url}/api/services/notify/persistent_notification"
         try:
-            requests.post(
+            response = requests.post(
                 url,
                 headers={
                     "Authorization": f"Bearer {self.ha_token}",
@@ -49,6 +49,7 @@ class HomeAssistantPublisher:
                 },
                 timeout=10,
             )
+            response.raise_for_status()
             logger.info("Failure notification sent to HA")
         except Exception:
             logger.error("Failed to send notification to HA")

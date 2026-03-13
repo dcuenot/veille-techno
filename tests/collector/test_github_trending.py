@@ -1,5 +1,7 @@
 from unittest.mock import patch, MagicMock
 
+import requests
+
 from src.collector.github_trending import GitHubTrendingSource
 
 SAMPLE_HTML = """
@@ -36,7 +38,7 @@ def test_github_trending_fetches_repos(mock_get: MagicMock):
 
 @patch("src.collector.github_trending.requests.get")
 def test_github_trending_returns_empty_on_error(mock_get: MagicMock):
-    mock_get.side_effect = Exception("Scraping failed")
+    mock_get.side_effect = requests.exceptions.ConnectionError("Scraping failed")
     source = GitHubTrendingSource(name="GitHub Trending", category="tech")
     articles = source.fetch()
     assert articles == []

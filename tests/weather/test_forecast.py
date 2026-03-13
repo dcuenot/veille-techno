@@ -1,5 +1,7 @@
 from unittest.mock import patch, MagicMock
 
+import requests
+
 from src.weather.forecast import fetch_weather, WeatherData
 
 SAMPLE_RESPONSE = {
@@ -26,6 +28,6 @@ def test_fetch_weather_returns_data(mock_get: MagicMock):
 
 @patch("src.weather.forecast.requests.get")
 def test_fetch_weather_returns_none_on_error(mock_get: MagicMock):
-    mock_get.side_effect = Exception("API down")
+    mock_get.side_effect = requests.exceptions.ConnectionError("API down")
     result = fetch_weather(lat=0.0, lon=0.0, api_key="test")
     assert result is None

@@ -28,14 +28,18 @@ def fetch_weather(lat: float, lon: float, api_key: str, timeout: int = 15) -> We
         )
         response.raise_for_status()
         data = response.json()
-    except Exception:
-        logger.warning("Failed to fetch weather data")
+    except requests.exceptions.RequestException as e:
+        logger.warning("Weather network error: %s", e)
         return None
 
-    return WeatherData(
-        city=data.get("name", ""),
-        description=data["weather"][0]["description"],
-        temp_current=data["main"]["temp"],
-        temp_min=data["main"]["temp_min"],
-        temp_max=data["main"]["temp_max"],
-    )
+    try:
+        return WeatherData(
+            city=data.get("name", ""),
+            description=data["weather"][0]["description"],
+            temp_current=data["main"]["temp"],
+            temp_min=data["main"]["temp_min"],
+            temp_max=data["main"]["temp_max"],
+        )
+    except (KeyError, IndexError) as e:
+        logger.error("Unexpected weather API response shape: %s", e)
+        return None

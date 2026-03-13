@@ -78,6 +78,8 @@ class PollyTTS(TTSEngine):
             audio_segments.append(segment)
             logger.info("Chunk %d/%d synthesized", i + 1, len(chunks))
 
+        if not audio_segments:
+            raise RuntimeError("No audio segments were synthesized — SSML may be empty")
         combined = audio_segments[0]
         for segment in audio_segments[1:]:
             combined = combined + segment

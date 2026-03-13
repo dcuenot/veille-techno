@@ -1,4 +1,7 @@
+from dataclasses import FrozenInstanceError
 from datetime import datetime, timezone
+
+import pytest
 
 from src.collector.base import Article
 
@@ -36,8 +39,5 @@ def test_article_is_immutable():
         published_at=datetime(2026, 3, 12, tzinfo=timezone.utc),
         summary="Summary",
     )
-    try:
+    with pytest.raises(FrozenInstanceError):
         article.title = "Changed"
-        assert False, "Should have raised FrozenInstanceError"
-    except AttributeError:
-        pass

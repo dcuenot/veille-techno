@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone, timedelta
 from email.utils import parsedate_to_datetime
+from time import mktime
 
 import feedparser
 import requests
@@ -27,8 +28,8 @@ class RSSSource(Source):
         try:
             response = requests.get(self.url, timeout=self.timeout)
             response.raise_for_status()
-        except Exception:
-            logger.warning("Failed to fetch RSS feed: %s", self.name)
+        except requests.exceptions.RequestException as e:
+            logger.warning("Failed to fetch RSS feed %s: %s", self.name, e)
             return []
 
         feed = feedparser.parse(response.content)
@@ -69,7 +70,6 @@ class RSSSource(Source):
             parsed_field = entry.get(f"{date_field}_parsed")
             if parsed_field:
                 try:
-                    from time import mktime
                     return datetime.fromtimestamp(
                         mktime(parsed_field), tz=timezone.utc
                     )

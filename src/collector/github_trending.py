@@ -22,8 +22,8 @@ class GitHubTrendingSource(Source):
         try:
             response = requests.get(TRENDING_URL, timeout=self.timeout, headers={"Accept": "text/html"})
             response.raise_for_status()
-        except Exception:
-            logger.warning("Failed to fetch GitHub Trending")
+        except requests.exceptions.RequestException as e:
+            logger.warning("Failed to fetch GitHub Trending: %s", e)
             return []
         return self._parse_html(response.text)
 

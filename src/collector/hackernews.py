@@ -27,24 +27,28 @@ class HackerNewsSource(Source):
             )
             response.raise_for_status()
             data = response.json()
-        except Exception:
-            logger.warning("Failed to fetch Hacker News")
+        except requests.exceptions.RequestException as e:
+            logger.warning("Failed to fetch Hacker News: %s", e)
             return []
 
         articles: list[Article] = []
         for hit in data.get("hits", []):
-            url = hit.get("url") or f"{HN_ITEM_URL}{hit['objectID']}"
-            published = datetime.fromtimestamp(hit["created_at_i"], tz=timezone.utc)
-            articles.append(
-                Article(
-                    title=hit.get("title", ""),
-                    source=self.name,
-                    url=url,
-                    published_at=published,
-                    summary=f"Points: {hit.get('points', 0)}",
-                    category=self.category,
+            try:
+                url = hit.get("url") or f"{HN_ITEM_URL}{hit['objectID']}"
+                published = datetime.fromtimestamp(hit["created_at_i"], tz=timezone.utc)
+                articles.append(
+                    Article(
+                        title=hit.get("title", ""),
+                        source=self.name,
+                        url=url,
+                        published_at=published,
+                        summary=f"Points: {hit.get('points', 0)}",
+                        category=self.category,
+                    )
                 )
-            )
+            except KeyError as e:
+                logger.warning("Skipping malformed HN hit (missing key %s)", e)
+                continue
 
         logger.info("Fetched %d articles from Hacker News", len(articles))
         return articles

@@ -42,7 +42,11 @@ def _setup_logging(settings: Settings) -> None:
     formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
     file_handler.setFormatter(formatter)
     console_handler.setFormatter(formatter)
-    root_logger.setLevel(getattr(logging, settings.logging.level, logging.INFO))
+    level_str = settings.logging.level.upper()
+    level = logging.getLevelName(level_str)
+    if not isinstance(level, int):
+        raise ValueError(f"Invalid log level in config: {settings.logging.level!r}")
+    root_logger.setLevel(level)
     root_logger.addHandler(file_handler)
     root_logger.addHandler(console_handler)
 

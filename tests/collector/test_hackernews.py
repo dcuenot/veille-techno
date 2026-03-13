@@ -1,6 +1,8 @@
 from datetime import datetime, timezone
 from unittest.mock import patch, MagicMock
 
+import requests
+
 from src.collector.hackernews import HackerNewsSource
 
 SAMPLE_RESPONSE = {
@@ -39,7 +41,7 @@ def test_hn_fetches_articles(mock_get: MagicMock):
 
 @patch("src.collector.hackernews.requests.get")
 def test_hn_returns_empty_on_error(mock_get: MagicMock):
-    mock_get.side_effect = Exception("API error")
+    mock_get.side_effect = requests.exceptions.ConnectionError("API error")
     source = HackerNewsSource(name="Hacker News", category="tech")
     articles = source.fetch()
     assert articles == []
