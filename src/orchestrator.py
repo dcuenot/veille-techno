@@ -30,6 +30,9 @@ MIN_ARTICLES = 5
 
 def _setup_logging(settings: Settings) -> None:
     """Configure rotating file + console logging."""
+    root_logger = logging.getLogger()
+    if root_logger.handlers:
+        return
     log_dir = Path(settings.logging.log_dir)
     log_dir.mkdir(parents=True, exist_ok=True)
     file_handler = RotatingFileHandler(
@@ -39,7 +42,6 @@ def _setup_logging(settings: Settings) -> None:
     formatter = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
     file_handler.setFormatter(formatter)
     console_handler.setFormatter(formatter)
-    root_logger = logging.getLogger()
     root_logger.setLevel(getattr(logging, settings.logging.level, logging.INFO))
     root_logger.addHandler(file_handler)
     root_logger.addHandler(console_handler)
@@ -103,15 +105,16 @@ def run_pipeline(config_path: Path) -> None:
             return
 
         logger.info("Step 2: Fetching weather...")
+        start = time.monotonic()
         weather = fetch_weather(
             lat=settings.weather.lat,
             lon=settings.weather.lon,
             api_key=settings.secrets.owm_api_key,
         )
         if weather:
-            logger.info("Weather: %s, %.0f°C", weather.description, weather.temp_current)
+            logger.info("Weather: %s, %.0f°C in %.1fs", weather.description, weather.temp_current, time.monotonic() - start)
         else:
-            logger.warning("Weather unavailable — will be omitted")
+            logger.warning("Weather unavailable in %.1fs — will be omitted", time.monotonic() - start)
 
         logger.info("Step 3: Generating briefing...")
         start = time.monotonic()
@@ -126,14 +129,18 @@ def run_pipeline(config_path: Path) -> None:
         logger.info("Briefing: %d segments in %.1fs", len(segments), time.monotonic() - start)
 
         logger.info("Step 4: Synthesizing audio...")
+        start = time.monotonic()
         ssml = build_ssml(segments)
         tts = PollyTTS(voice=settings.audio.voice, output_dir=settings.audio.output_dir)
         today = date.today().isoformat()
         mp3_path = tts.synthesize(ssml, f"briefing-{today}")
+        logger.info("Audio synthesized in %.1fs", time.monotonic() - start)
 
         logger.info("Step 5: Publishing to Home Assistant...")
+        start = time.monotonic()
         publisher.publish(mp3_path)
         publisher.cleanup(retention_days=settings.audio.retention_days)
+        logger.info("Published in %.1fs", time.monotonic() - start)
 
         logger.info("=== Pipeline complete ===")
 
