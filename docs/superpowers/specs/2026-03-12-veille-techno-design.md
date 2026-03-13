@@ -29,16 +29,18 @@ Récupère les articles des dernières 24h depuis des sources configurables.
 |-----------|---------|---------|
 | Actu France | Le Monde, France Info, Les Échos | RSS |
 | Actu internationale | Reuters, BBC News | RSS |
-| Tech généraliste | Hacker News, TechCrunch | API Algolia HN + RSS |
-| Dev/Engineering | GitHub Trending, dev.to | Scraping HTML + RSS |
+| Tech généraliste | Hacker News, TechCrunch | API Algolia HN (`hn.algolia.com/api/v1/search_by_date`) + RSS |
+| Dev/Engineering | GitHub Trending, dev.to | Scraping HTML (fragile, même fallback que RSS en cas d'échec) + RSS |
 | IA/ML | Papers with Code, blogs Anthropic/OpenAI/Google DeepMind | RSS |
 | Cloud/Infra | AWS What's New, Google Cloud Blog | RSS |
 | Sécu | The Hacker News (security) | RSS |
 
 **Fonctionnement :**
 - Chaque source implémente une interface commune : `fetch() -> list[Article]`
+- Timeout HTTP de 15 secondes par requête pour éviter les blocages sur le Pi
+- **Modèle Article :** `Article(title: str, source: str, url: str, published_at: datetime, summary: str)`
 - Configuration des sources via fichier YAML
-- Déduplication par URL et similarité de titre (fuzzy match sur les titres, seuil 80%)
+- Déduplication par URL et similarité de titre (`rapidfuzz.fuzz.token_sort_ratio`, seuil 80%)
 - Filtre temporel : dernières 24h uniquement (timezone Europe/Paris)
 - Chaque article est tronqué à 500 caractères max pour l'extrait
 - Résultat : ~30-50 articles bruts transmis à l'éditeur IA
@@ -67,7 +69,10 @@ Reçoit les ~30-50 articles et sélectionne les meilleurs : 3-5 actu générale 
 - Consignes : phrases courtes adaptées à l'oral, pas de jargon non expliqué, pas d'URLs
 
 **Input :** Liste d'articles (titre, source, date, résumé/extrait tronqué à 500 chars) + données météo. Budget total prompt : ~20K tokens max.
-**Output :** Texte brut du briefing, prêt pour le TTS. Utilisation du mode JSON (structured output) pour séparer le contenu éditorial des métadonnées, puis application d'un template SSML déterministe.
+**Output :** Utilisation du mode JSON (structured output) retournant une liste de segments `{type: "intro"|"weather"|"news"|"outro", text: str}`. Un template SSML déterministe applique ensuite le formatage audio :
+- `<break time="800ms"/>` entre chaque segment
+- `<break time="1200ms"/>` entre les blocs "L'essentiel" et "Côté tech"
+- `<prosody rate="95%">` pour un rythme légèrement ralenti, naturel à l'oral
 
 ### 4. Générateur audio (Amazon Polly)
 
@@ -95,20 +100,27 @@ veille-techno/
 │   ├── settings.yaml          # Sources, voix Polly, localisation météo, modèle Claude
 │   └── settings.example.yaml  # Template sans secrets
 ├── src/
+│   ├── __init__.py
 │   ├── collector/
-│   │   ├── base.py            # Interface Source
+│   │   ├── __init__.py
+│   │   ├── base.py            # Interface Source + dataclass Article
 │   │   ├── rss.py             # Collecteur RSS générique
-│   │   ├── hackernews.py      # API Hacker News
-│   │   └── github_trending.py # API GitHub
+│   │   ├── hackernews.py      # API Hacker News (Algolia)
+│   │   └── github_trending.py # Scraping GitHub Trending
 │   ├── editor/
+│   │   ├── __init__.py
 │   │   └── briefing.py        # Génération du briefing via Claude
 │   ├── weather/
+│   │   ├── __init__.py
 │   │   └── forecast.py        # Appel OpenWeatherMap
 │   ├── audio/
-│   │   └── polly.py           # Génération MP3 via Amazon Polly
+│   │   ├── __init__.py
+│   │   ├── base.py            # Interface TTS commune
+│   │   └── polly.py           # Implémentation Amazon Polly
 │   ├── publisher/
+│   │   ├── __init__.py
 │   │   └── homeassistant.py   # Dépôt du MP3 + notification HA
-│   └── orchestrator.py        # Pipeline principal
+│   └── orchestrator.py        # Pipeline principal (point d'entrée : python -m src.orchestrator)
 ├── tests/
 ├── requirements.txt
 ├── .env.example               # ANTHROPIC_API_KEY, AWS creds, OWM key, HA token
@@ -117,7 +129,7 @@ veille-techno/
 
 ## Résilience et gestion d'erreurs
 
-- **Collecteur :** Si une source RSS échoue, le pipeline continue avec les sources restantes. Minimum 5 articles requis pour générer un briefing, sinon abandon avec notification.
+- **Collecteur :** Si une source échoue (RSS, scraping HTML, ou API), le pipeline continue avec les sources restantes. Minimum 5 articles requis pour générer un briefing, sinon abandon avec notification.
 - **Météo :** Si OpenWeatherMap est indisponible, le bloc météo est omis du briefing.
 - **Claude API :** 2 tentatives avec backoff exponentiel. Si échec, pas de briefing ce jour.
 - **Polly :** 2 tentatives par chunk. Si un chunk échoue, abandon avec notification.
@@ -135,7 +147,7 @@ veille-techno/
 - **Python :** >= 3.11
 - **Gestion des dépendances :** venv + requirements.txt (pip)
 - **Timezone :** Europe/Paris (configuré explicitement dans le code)
-- **Dépendances principales :** feedparser, anthropic, boto3, pydub, requests, python-dotenv, pyyaml
+- **Dépendances principales :** feedparser, anthropic, boto3, pydub, requests, python-dotenv, pyyaml, rapidfuzz
 - **Dépendance système :** ffmpeg (pour la concaténation audio via pydub)
 
 ## Scheduling
@@ -165,10 +177,10 @@ veille-techno/
 | Composant | Coût mensuel |
 |-----------|-------------|
 | Claude API (Haiku 4.5) | ~1 € |
-| Amazon Polly (Neural) | ~1-2 € |
+| Amazon Polly (Neural) | ~5 € (~300K chars/mois à $16/M chars). Gratuit la 1ère année (Free Tier 1M chars/mois). |
 | OpenWeatherMap | Gratuit |
 | Raspberry Pi / HA | Déjà en place |
-| **Total** | **~3-5 €/mois** |
+| **Total** | **~6 €/mois** (gratuit la 1ère année pour Polly) |
 
 ## Évolutivité
 
