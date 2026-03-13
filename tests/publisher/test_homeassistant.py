@@ -39,6 +39,19 @@ def test_notify_failure_calls_ha_api(mock_post: MagicMock):
     assert "notify" in call_kwargs[0][0]
 
 
+@patch("src.publisher.homeassistant.requests.post")
+def test_notify_failure_handles_request_exception(mock_post: MagicMock):
+    mock_post.side_effect = Exception("connection refused")
+    publisher = HomeAssistantPublisher(
+        ha_media_dir="/tmp",
+        ha_url="http://localhost:8123",
+        ha_token="test-token",
+        media_player_entity="media_player.echo",
+    )
+    # Should not raise even when requests.post raises
+    publisher.notify_failure("some error")
+
+
 def test_cleanup_old_files(tmp_path: Path):
     import time
     media_dir = tmp_path / "media"
