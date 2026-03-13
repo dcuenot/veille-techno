@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Secrets
+.env
+config/settings.yaml
+
+# Output
+output/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store

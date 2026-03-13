@@ -1,0 +1,90 @@
+# Veille Techno - Configuration
+timezone: Europe/Paris
+
+weather:
+  city: Fontenay-sous-Bois
+  lat: 48.8566
+  lon: 2.4739
+
+editor:
+  model: claude-haiku-4-5-20251001
+  max_general_news: 5
+  max_tech_news: 10
+
+audio:
+  engine: polly
+  voice: Lea
+  output_dir: output/
+  retention_days: 7
+
+publisher:
+  ha_media_dir: /config/www/briefings/
+  media_player_entity: media_player.echo_salon
+
+logging:
+  level: INFO
+  log_dir: /config/logs/
+
+sources:
+  - name: Le Monde
+    type: rss
+    url: https://www.lemonde.fr/rss/une.xml
+    category: general
+  - name: France Info
+    type: rss
+    url: https://www.francetvinfo.fr/titres.rss
+    category: general
+  - name: Les Echos
+    type: rss
+    url: https://syndication.lesechos.fr/rss/rss_france.xml
+    category: general
+  - name: Reuters
+    type: rss
+    url: https://www.reutersagency.com/feed/?best-topics=tech
+    category: general
+  - name: BBC News
+    type: rss
+    url: https://feeds.bbci.co.uk/news/technology/rss.xml
+    category: general
+  - name: Hacker News
+    type: hackernews
+    category: tech
+  - name: TechCrunch
+    type: rss
+    url: https://techcrunch.com/feed/
+    category: tech
+  - name: GitHub Trending
+    type: github_trending
+    category: tech
+  - name: dev.to
+    type: rss
+    url: https://dev.to/feed
+    category: tech
+  - name: Papers with Code
+    type: rss
+    url: https://paperswithcode.com/latest
+    category: tech
+  - name: Anthropic Blog
+    type: rss
+    url: https://www.anthropic.com/rss.xml
+    category: tech
+  - name: OpenAI Blog
+    type: rss
+    url: https://openai.com/blog/rss.xml
+    category: tech
+  - name: Google AI Blog
+    type: rss
+    url: https://blog.google/technology/ai/rss/
+    category: tech
+  - name: AWS What's New
+    type: rss
+    url: https://aws.amazon.com/about-aws/whats-new/recent/feed/
+    category: tech
+  - name: Google Cloud Blog
+    type: rss
+    url: https://cloud.google.com/blog/feed
+    category: tech
+  - name: The Hacker News Security
+    type: rss
+    url: https://feeds.feedburner.com/TheHackersNews
+    category: tech
