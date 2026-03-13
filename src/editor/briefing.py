@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -70,7 +71,7 @@ def generate_briefing(
                 system=SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": user_content}],
             )
-            raw = message.content[0].text
+            raw = _extract_json(message.content[0].text)
             data = json.loads(raw)
             return [
                 BriefingSegment(type=s["type"], text=s["text"])
@@ -78,12 +79,22 @@ def generate_briefing(
             ]
         except (json.JSONDecodeError, KeyError, IndexError, anthropic.APIError) as e:
             logger.warning(
-                "Briefing error (attempt %d): %s", attempt + 1, e
+                "Briefing error (attempt %d): %s — raw response: %.200s",
+                attempt + 1, e, raw if "raw" in dir() else "N/A",
             )
             if attempt < MAX_RETRIES - 1:
                 time.sleep(2 ** attempt)
 
     raise RuntimeError("Failed to generate briefing after retries")
+
+
+def _extract_json(text: str) -> str:
+    """Strip markdown code fences if present."""
+    stripped = text.strip()
+    match = re.search(r"```(?:json)?\s*\n?(.*?)```", stripped, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    return stripped
 
 
 def _build_user_prompt(
