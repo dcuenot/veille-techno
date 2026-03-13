@@ -17,25 +17,42 @@ MAX_RETRIES = 2
 
 
 def chunk_ssml(ssml: str, max_chars: int = MAX_SSML_CHARS) -> list[str]:
-    """Split SSML into chunks that fit within Polly's character limit."""
+    """Split SSML into chunks that fit within Polly's character limit.
+
+    Strips <speak> and <prosody> wrappers, splits plain text on sentence
+    boundaries, then re-wraps each chunk with both tags.
+    """
+    import re
+
     inner = ssml
     if inner.startswith("<speak>"):
         inner = inner[7:]
     if inner.endswith("</speak>"):
         inner = inner[:-8]
 
-    overhead = len("<speak></speak>")
+    # Extract and strip prosody wrapper if present
+    prosody_open = ""
+    prosody_close = ""
+    prosody_match = re.match(r'(<prosody[^>]*>)(.*)(</prosody>)$', inner, re.DOTALL)
+    if prosody_match:
+        prosody_open = prosody_match.group(1)
+        inner = prosody_match.group(2)
+        prosody_close = prosody_match.group(3)
+
+    wrapper_open = f"<speak>{prosody_open}"
+    wrapper_close = f"{prosody_close}</speak>"
+    overhead = len(wrapper_open) + len(wrapper_close)
     max_inner = max_chars - overhead
 
     if len(inner) <= max_inner:
-        return [f"<speak>{inner}</speak>"]
+        return [f"{wrapper_open}{inner}{wrapper_close}"]
 
     chunks: list[str] = []
     remaining = inner
 
     while remaining:
         if len(remaining) <= max_inner:
-            chunks.append(f"<speak>{remaining}</speak>")
+            chunks.append(f"{wrapper_open}{remaining}{wrapper_close}")
             break
 
         split_at = remaining[:max_inner].rfind(". ")
@@ -50,7 +67,7 @@ def chunk_ssml(ssml: str, max_chars: int = MAX_SSML_CHARS) -> list[str]:
 
         chunk_text = remaining[:split_at]
         remaining = remaining[split_at:]
-        chunks.append(f"<speak>{chunk_text}</speak>")
+        chunks.append(f"{wrapper_open}{chunk_text}{wrapper_close}")
 
     return chunks
 
