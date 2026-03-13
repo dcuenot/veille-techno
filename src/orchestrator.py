@@ -135,6 +135,7 @@ def run_pipeline(config_path: Path) -> None:
         logger.info("Step 4: Synthesizing audio...")
         start = time.monotonic()
         ssml = build_ssml(segments)
+        logger.info("SSML generated: %d chars, first chunk preview: %.300s", len(ssml), ssml)
         tts = PollyTTS(voice=settings.audio.voice, output_dir=settings.audio.output_dir)
         today = date.today().isoformat()
         mp3_path = tts.synthesize(ssml, f"briefing-{today}")
