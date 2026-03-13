@@ -1,0 +1,50 @@
+name: "Veille Techno"
+description: "Briefing matinal audio automatise — collecte de news, editorialisation par IA, synthese vocale, diffusion sur Echo via Home Assistant."
+version: "1.0.0"
+slug: "veille_techno"
+url: "https://github.com/tmp/veille-techno"
+arch:
+  - aarch64
+  - amd64
+startup: application
+boot: auto
+hassio_api: true
+homeassistant_api: true
+map:
+  - media:rw
+
+options:
+  anthropic_api_key: ""
+  aws_access_key_id: ""
+  aws_secret_access_key: ""
+  aws_default_region: "eu-west-3"
+  owm_api_key: ""
+  schedule_hour: 7
+  schedule_minute: 30
+  polly_voice: "Lea"
+  weather_city: "Fontenay-sous-Bois"
+  weather_lat: 48.8566
+  weather_lon: 2.4739
+  media_player_entity: "media_player.echo_salon"
+  editor_model: "claude-haiku-4-5-20251001"
+  max_general_news: 5
+  max_tech_news: 10
+  log_level: "INFO"
+
+schema:
+  anthropic_api_key: password
+  aws_access_key_id: password
+  aws_secret_access_key: password
+  aws_default_region: str
+  owm_api_key: password
+  schedule_hour: "int(0,23)"
+  schedule_minute: "int(0,59)"
+  polly_voice: str
+  weather_city: str
+  weather_lat: float
+  weather_lon: float
+  media_player_entity: str
+  editor_model: str
+  max_general_news: "int(1,10)"
+  max_tech_news: "int(1,20)"
+  log_level: "list(DEBUG|INFO|WARNING|ERROR)"

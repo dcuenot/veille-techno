@@ -2,60 +2,52 @@
 
 Briefing matinal audio automatise — collecte de news, editorialisation par IA, synthese vocale, diffusion sur Amazon Echo via Home Assistant.
 
-## Installation (Raspberry Pi)
+## Installation (Add-on Home Assistant)
 
 ### Prerequis
 
-- Python >= 3.11
-- ffmpeg: `sudo apt install ffmpeg`
-- Home Assistant avec Alexa Media Player (HACS)
+- Home Assistant OS sur Raspberry Pi (ou autre)
+- Alexa Media Player installe via HACS
+- Cles API : Anthropic, AWS (Polly), OpenWeatherMap
 
-### Setup
+### Installation
 
-```bash
-git clone <repo-url> ~/veille-techno
-cd ~/veille-techno
-
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
-cp .env.example .env
-cp config/settings.example.yaml config/settings.yaml
-```
-
-Editer `.env` avec vos cles API et `config/settings.yaml` avec votre configuration.
-
-### Validation
+1. Depuis le terminal SSH de HA :
 
 ```bash
-source .venv/bin/activate
-python -m src.orchestrator --dry-run --config config/settings.yaml
+cd /addons
+git clone <repo-url> veille_techno
 ```
 
-### Cron (generation quotidienne a 7h30)
+2. Dans HA : **Settings > Add-ons > Recharger** (bouton en haut a droite)
+3. L'add-on "Veille Techno" apparait dans **Add-ons locaux**
+4. Cliquer > **Installer**
+5. Onglet **Configuration** : remplir les cles API et parametres
+6. **Demarrer** l'add-on
 
-```bash
-crontab -e
-```
+### Configuration
 
-Ajouter :
+| Parametre | Description |
+|-----------|-------------|
+| `anthropic_api_key` | Cle API Anthropic (console.anthropic.com) |
+| `aws_access_key_id` | AWS IAM avec policy AmazonPollyReadOnlyAccess |
+| `aws_secret_access_key` | Secret AWS |
+| `owm_api_key` | Cle OpenWeatherMap (gratuit) |
+| `schedule_hour` / `schedule_minute` | Heure de generation (defaut: 7h30) |
+| `weather_city` / `weather_lat` / `weather_lon` | Localisation meteo |
+| `media_player_entity` | Entite Echo (ex: media_player.echo_salon) |
+| `polly_voice` | Voix Polly (defaut: Lea) |
 
-```
-30 7 * * * cd /home/<user>/veille-techno && /home/<user>/veille-techno/.venv/bin/python -m src.orchestrator --config config/settings.yaml >> /tmp/veille-techno-cron.log 2>&1
-```
+### Automatisation HA (lecture sur Echo)
 
-### Home Assistant
-
-Configurer une automatisation HA qui lit le MP3 sur vos Echo quand le capteur de presence/reveil se declenche :
+Creer une automatisation qui lit le MP3 quand le briefing est pret :
 
 ```yaml
 automation:
   - alias: "Briefing matinal"
     trigger:
-      - platform: state
-        entity_id: binary_sensor.alarm_clock
-        to: "on"
+      - platform: time
+        at: "08:00:00"
     condition:
       - condition: template
         value_template: >
@@ -71,15 +63,33 @@ automation:
           entity_id: media_player.echo_salon
         data:
           media_content_id: >
-            http://<HA_IP>:8123/local/briefings/briefing-{{ now().strftime('%Y-%m-%d') }}.mp3
+            media-source://media_source/local/veille-techno/briefing-{{ now().strftime('%Y-%m-%d') }}.mp3
           media_content_type: music
 ```
 
-## Tests
+## Developpement local
+
+### Setup
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+cp config/settings.example.yaml config/settings.yaml
+```
+
+### Tests
 
 ```bash
 source .venv/bin/activate
 python -m pytest --cov=src --cov-report=term-missing -v
+```
+
+### Dry-run
+
+```bash
+python -m src.orchestrator --dry-run --config config/settings.yaml
 ```
 
 ## Cout estime
