@@ -137,6 +137,13 @@ def run_pipeline(config_path: Path) -> None:
         logger.info("Step 4: Synthesizing audio...")
         start = time.monotonic()
         ssml = build_ssml(segments)
+
+        # Save SSML for debugging
+        ssml_path = Path(settings.publisher.ha_media_dir) / "latest_briefing.ssml"
+        ssml_path.parent.mkdir(parents=True, exist_ok=True)
+        ssml_path.write_text(ssml, encoding="utf-8")
+        logger.info("SSML saved to %s (%d chars)", ssml_path, len(ssml))
+
         tts = PollyTTS(voice=settings.audio.voice, output_dir=settings.audio.output_dir)
         today = date.today().isoformat()
         mp3_path = tts.synthesize(ssml, f"briefing-{today}")

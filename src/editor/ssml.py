@@ -8,8 +8,23 @@ from src.editor.briefing import BriefingSegment
 
 logger = logging.getLogger(__name__)
 
-BREAK_SHORT = '<break time="800ms"/>'
-BREAK_LONG = '<break time="1200ms"/>'
+# Pauses between segments
+BREAK_BETWEEN = '<break time="800ms"/>'
+BREAK_SECTION = '<break time="1500ms"/>'
+
+# Pause after each sentence within a segment
+BREAK_SENTENCE = '<break time="400ms"/>'
+
+
+def _add_sentence_breaks(text: str) -> str:
+    """Insert short pauses after sentence-ending punctuation."""
+    # Add break after . ! ? followed by a space and uppercase letter
+    result = re.sub(
+        r'([.!?])\s+(?=[A-ZÀ-ÖÙ-Ü])',
+        rf'\1{BREAK_SENTENCE} ',
+        text,
+    )
+    return result
 
 
 def build_ssml(segments: list[BriefingSegment]) -> str:
@@ -20,12 +35,16 @@ def build_ssml(segments: list[BriefingSegment]) -> str:
     for i, segment in enumerate(segments):
         if i > 0:
             if segment.type == "news" and news_count == 1:
-                parts.append(BREAK_LONG)
+                # Longer pause before tech section
+                parts.append(BREAK_SECTION)
+            elif segment.type == "outro":
+                parts.append(BREAK_SECTION)
             else:
-                parts.append(BREAK_SHORT)
+                parts.append(BREAK_BETWEEN)
 
         escaped_text = _sanitize_for_ssml(segment.text)
-        parts.append(escaped_text)
+        text_with_breaks = _add_sentence_breaks(escaped_text)
+        parts.append(text_with_breaks)
 
         if segment.type == "news":
             news_count += 1
