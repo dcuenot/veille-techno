@@ -72,22 +72,59 @@ def chunk_ssml(ssml: str, max_chars: int = MAX_SSML_CHARS) -> list[str]:
     return chunks
 
 
-def convert_for_alexa(mp3_path: Path) -> Path:
-    """Convert MP3 to Alexa-compatible format (48kbps, 16kHz, stereo)."""
+ALEXA_MAX_DURATION_S = 230  # Alexa <audio> limit is 240s, keep margin
+
+
+def convert_for_alexa(mp3_path: Path) -> list[Path]:
+    """Convert MP3 to Alexa-compatible chunks (48kbps, 16kHz, stereo, <=230s each)."""
     import subprocess
 
-    output_path = mp3_path.with_suffix(".alexa.mp3")
+    # First convert to Alexa format
+    converted = mp3_path.with_suffix(".alexa.mp3")
     cmd = [
         "ffmpeg", "-y", "-i", str(mp3_path),
         "-ac", "2", "-codec:a", "libmp3lame",
         "-b:a", "48k", "-ar", "16000",
-        str(output_path),
+        str(converted),
     ]
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
     if result.returncode != 0:
         raise RuntimeError(f"ffmpeg conversion failed: {result.stderr}")
-    logger.info("Converted %s for Alexa (%s)", mp3_path.name, output_path.name)
-    return output_path
+
+    # Get duration
+    probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(converted)],
+        capture_output=True, text=True, timeout=30,
+    )
+    duration = float(probe.stdout.strip())
+
+    if duration <= ALEXA_MAX_DURATION_S:
+        logger.info("Converted %s for Alexa (%.0fs, 1 chunk)", mp3_path.name, duration)
+        return [converted]
+
+    # Split into chunks
+    num_chunks = int(duration // ALEXA_MAX_DURATION_S) + 1
+    chunks: list[Path] = []
+    stem = mp3_path.stem
+
+    for i in range(num_chunks):
+        start = i * ALEXA_MAX_DURATION_S
+        chunk_path = mp3_path.parent / f"{stem}.alexa-{i + 1}.mp3"
+        split_cmd = [
+            "ffmpeg", "-y", "-i", str(converted),
+            "-ss", str(start), "-t", str(ALEXA_MAX_DURATION_S),
+            "-c", "copy", str(chunk_path),
+        ]
+        res = subprocess.run(split_cmd, capture_output=True, text=True, timeout=60)
+        if res.returncode != 0:
+            raise RuntimeError(f"ffmpeg split failed for chunk {i + 1}: {res.stderr}")
+        chunks.append(chunk_path)
+
+    # Clean up single converted file
+    converted.unlink(missing_ok=True)
+    logger.info("Converted %s for Alexa (%.0fs, %d chunks)", mp3_path.name, duration, len(chunks))
+    return chunks
 
 
 class PollyTTS(TTSEngine):

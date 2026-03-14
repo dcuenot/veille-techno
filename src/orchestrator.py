@@ -144,8 +144,8 @@ def run_pipeline(config_path: Path) -> None:
 
         logger.info("Step 5: Converting for Alexa...")
         start = time.monotonic()
-        alexa_mp3 = convert_for_alexa(mp3_path)
-        logger.info("Converted in %.1fs", time.monotonic() - start)
+        alexa_chunks = convert_for_alexa(mp3_path)
+        logger.info("Converted in %.1fs (%d chunk(s))", time.monotonic() - start, len(alexa_chunks))
 
         logger.info("Step 6: Uploading to S3...")
         start = time.monotonic()
@@ -153,15 +153,18 @@ def run_pipeline(config_path: Path) -> None:
             logger.error("No S3 bucket configured — cannot upload")
             publisher.notify_failure("No S3 bucket configured")
             return
-        s3_url = upload_to_s3(alexa_mp3, settings.publisher.s3_bucket)
+        s3_urls = []
+        for chunk_path in alexa_chunks:
+            url = upload_to_s3(chunk_path, settings.publisher.s3_bucket)
+            s3_urls.append(url)
         cleanup_s3(settings.publisher.s3_bucket)
-        logger.info("Uploaded in %.1fs: %s", time.monotonic() - start, s3_url)
+        logger.info("Uploaded %d chunk(s) in %.1fs", len(s3_urls), time.monotonic() - start)
 
-        # Save S3 URL for play command
+        # Save S3 URLs for play command (one per line)
         url_path = Path(settings.publisher.ha_media_dir) / "latest_briefing_url.txt"
         url_path.parent.mkdir(parents=True, exist_ok=True)
-        url_path.write_text(s3_url, encoding="utf-8")
-        logger.info("S3 URL saved to %s", url_path)
+        url_path.write_text("\n".join(s3_urls), encoding="utf-8")
+        logger.info("S3 URLs saved to %s", url_path)
 
         logger.info("=== Prepare complete ===")
 
@@ -171,7 +174,7 @@ def run_pipeline(config_path: Path) -> None:
 
 
 def play_briefing(config_path: Path) -> None:
-    """Read saved S3 URL and play MP3 via notify.alexa_media audio tag."""
+    """Read saved S3 URLs and play MP3 chunks via notify.alexa_media audio tags."""
     settings = load_config(config_path)
     _setup_logging(settings)
 
@@ -180,10 +183,12 @@ def play_briefing(config_path: Path) -> None:
         logger.error("No briefing URL found at %s — run --prepare first", url_path)
         return
 
-    s3_url = url_path.read_text(encoding="utf-8").strip()
-    if not s3_url:
+    content = url_path.read_text(encoding="utf-8").strip()
+    if not content:
         logger.error("Briefing URL file is empty at %s", url_path)
         return
+
+    s3_urls = [u for u in content.splitlines() if u.strip()]
 
     publisher = HomeAssistantPublisher(
         ha_media_dir=settings.publisher.ha_media_dir,
@@ -192,9 +197,9 @@ def play_briefing(config_path: Path) -> None:
         media_player_entity=settings.publisher.media_player_entity,
         s3_bucket=settings.publisher.s3_bucket,
     )
-    message = f"<audio src='{s3_url}'/>"
+    message = " ".join(f"<audio src='{url}'/>" for url in s3_urls)
     publisher.play_tts(message)
-    logger.info("Briefing audio triggered: %s", s3_url)
+    logger.info("Briefing audio triggered (%d chunk(s))", len(s3_urls))
 
 
 def run_dry_run(config_path: Path) -> None:

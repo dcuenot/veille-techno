@@ -52,8 +52,11 @@ def test_pipeline_runs_end_to_end(
     mock_polly = MagicMock()
     mock_polly_cls.return_value = mock_polly
     mock_polly.synthesize.return_value = tmp_path / "test.mp3"
-    mock_convert.return_value = tmp_path / "test.alexa.mp3"
-    mock_upload.return_value = "https://test-bucket.s3.us-east-2.amazonaws.com/veille-techno/test.alexa.mp3"
+    mock_convert.return_value = [tmp_path / "test.alexa-1.mp3", tmp_path / "test.alexa-2.mp3"]
+    mock_upload.side_effect = [
+        "https://test-bucket.s3.us-east-2.amazonaws.com/veille-techno/test.alexa-1.mp3",
+        "https://test-bucket.s3.us-east-2.amazonaws.com/veille-techno/test.alexa-2.mp3",
+    ]
     mock_publisher = MagicMock()
     mock_publisher_cls.return_value = mock_publisher
 
@@ -65,11 +68,14 @@ def test_pipeline_runs_end_to_end(
     mock_ssml.assert_called_once()
     mock_polly.synthesize.assert_called_once()
     mock_convert.assert_called_once()
-    mock_upload.assert_called_once()
-    # Verify S3 URL saved to file
+    assert mock_upload.call_count == 2
+    # Verify S3 URLs saved to file (one per line)
     url_file = tmp_path / "ha" / "latest_briefing_url.txt"
     assert url_file.exists()
-    assert "test-bucket" in url_file.read_text(encoding="utf-8")
+    urls = url_file.read_text(encoding="utf-8").strip().splitlines()
+    assert len(urls) == 2
+    assert "alexa-1" in urls[0]
+    assert "alexa-2" in urls[1]
 
 
 @patch("src.orchestrator.HomeAssistantPublisher")
@@ -201,18 +207,20 @@ def test_play_briefing_sends_tts(mock_load_config, mock_publisher_cls, tmp_path)
         sources=(),
         secrets=Secrets(anthropic_api_key="test", owm_api_key="test", ha_url="http://localhost:8123", ha_token="test"),
     )
-    # Create the URL file
+    # Create the URL file with 2 chunks
     ha_dir = tmp_path / "ha"
     ha_dir.mkdir(parents=True)
-    s3_url = "https://bucket.s3.us-east-2.amazonaws.com/veille-techno/briefing.alexa.mp3"
-    (ha_dir / "latest_briefing_url.txt").write_text(s3_url, encoding="utf-8")
+    url1 = "https://bucket.s3.us-east-2.amazonaws.com/veille-techno/briefing.alexa-1.mp3"
+    url2 = "https://bucket.s3.us-east-2.amazonaws.com/veille-techno/briefing.alexa-2.mp3"
+    (ha_dir / "latest_briefing_url.txt").write_text(f"{url1}\n{url2}", encoding="utf-8")
 
     mock_publisher = MagicMock()
     mock_publisher_cls.return_value = mock_publisher
 
     play_briefing(config_path=tmp_path / "settings.yaml")
 
-    mock_publisher.play_tts.assert_called_once_with(f"<audio src='{s3_url}'/>")
+    expected = f"<audio src='{url1}'/> <audio src='{url2}'/>"
+    mock_publisher.play_tts.assert_called_once_with(expected)
 
 
 @patch("src.orchestrator.HomeAssistantPublisher")
