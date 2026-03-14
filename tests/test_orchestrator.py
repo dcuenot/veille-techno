@@ -219,8 +219,9 @@ def test_play_briefing_sends_tts(mock_load_config, mock_publisher_cls, tmp_path)
 
     play_briefing(config_path=tmp_path / "settings.yaml")
 
-    expected = f"<audio src='{url1}'/> <audio src='{url2}'/>"
-    mock_publisher.play_tts.assert_called_once_with(expected)
+    assert mock_publisher.play_tts.call_count == 2
+    mock_publisher.play_tts.assert_any_call(f"<audio src='{url1}'/>")
+    mock_publisher.play_tts.assert_any_call(f"<audio src='{url2}'/>")
 
 
 @patch("src.orchestrator.HomeAssistantPublisher")

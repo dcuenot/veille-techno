@@ -204,9 +204,10 @@ def play_briefing(config_path: Path) -> None:
         media_player_entity=settings.publisher.media_player_entity,
         s3_bucket=settings.publisher.s3_bucket,
     )
-    message = " ".join(f"<audio src='{url}'/>" for url in s3_urls)
-    publisher.play_tts(message)
-    logger.info("Briefing audio triggered (%d chunk(s))", len(s3_urls))
+    for i, url in enumerate(s3_urls):
+        message = f"<audio src='{url}'/>"
+        publisher.play_tts(message)
+        logger.info("Chunk %d/%d triggered", i + 1, len(s3_urls))
 
 
 def run_dry_run(config_path: Path) -> None:
