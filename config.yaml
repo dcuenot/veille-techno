@@ -44,7 +44,7 @@ schema:
   weather_city: str
   weather_lat: float
   weather_lon: float
-  s3_bucket: "str?"
+  s3_bucket: str
   media_player_entity: str
   editor_model: str
   max_general_news: "int(1,10)"
