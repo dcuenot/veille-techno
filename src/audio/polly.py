@@ -30,17 +30,20 @@ def chunk_ssml(ssml: str, max_chars: int = MAX_SSML_CHARS) -> list[str]:
     if inner.endswith("</speak>"):
         inner = inner[:-8]
 
-    # Extract and strip prosody wrapper if present
-    prosody_open = ""
-    prosody_close = ""
-    prosody_match = re.match(r'(<prosody[^>]*>)(.*)(</prosody>)$', inner, re.DOTALL)
-    if prosody_match:
-        prosody_open = prosody_match.group(1)
-        inner = prosody_match.group(2)
-        prosody_close = prosody_match.group(3)
+    # Extract and strip nested wrappers (amazon:auto-breaths, prosody, etc.)
+    wrapper_tags_open = ""
+    wrapper_tags_close = ""
+    # Iteratively peel off opening/closing wrapper tags
+    while True:
+        m = re.match(r'(<(?:prosody|amazon:\S+)[^>]*>)(.*)(</(?:prosody|amazon:\S+)>)$', inner, re.DOTALL)
+        if not m:
+            break
+        wrapper_tags_open += m.group(1)
+        wrapper_tags_close = m.group(3) + wrapper_tags_close
+        inner = m.group(2)
 
-    wrapper_open = f"<speak>{prosody_open}"
-    wrapper_close = f"{prosody_close}</speak>"
+    wrapper_open = f"<speak>{wrapper_tags_open}"
+    wrapper_close = f"{wrapper_tags_close}</speak>"
     overhead = len(wrapper_open) + len(wrapper_close)
     max_inner = max_chars - overhead
 
