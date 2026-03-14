@@ -72,6 +72,24 @@ def chunk_ssml(ssml: str, max_chars: int = MAX_SSML_CHARS) -> list[str]:
     return chunks
 
 
+def convert_for_alexa(mp3_path: Path) -> Path:
+    """Convert MP3 to Alexa-compatible format (48kbps, 16kHz, stereo)."""
+    import subprocess
+
+    output_path = mp3_path.with_suffix(".alexa.mp3")
+    cmd = [
+        "ffmpeg", "-y", "-i", str(mp3_path),
+        "-ac", "2", "-codec:a", "libmp3lame",
+        "-b:a", "48k", "-ar", "16000",
+        str(output_path),
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    if result.returncode != 0:
+        raise RuntimeError(f"ffmpeg conversion failed: {result.stderr}")
+    logger.info("Converted %s for Alexa (%s)", mp3_path.name, output_path.name)
+    return output_path
+
+
 class PollyTTS(TTSEngine):
     """Amazon Polly Neural TTS implementation."""
 

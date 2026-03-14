@@ -5,14 +5,20 @@ from unittest.mock import patch, MagicMock
 from src.orchestrator import run_pipeline, run_dry_run, play_briefing, collect_all, _build_sources
 
 
+@patch("src.orchestrator.cleanup_s3")
+@patch("src.orchestrator.upload_to_s3")
+@patch("src.orchestrator.convert_for_alexa")
+@patch("src.orchestrator.PollyTTS")
 @patch("src.orchestrator.HomeAssistantPublisher")
 @patch("src.orchestrator.generate_briefing")
+@patch("src.orchestrator.build_ssml")
 @patch("src.orchestrator.fetch_weather")
 @patch("src.orchestrator.collect_all")
 @patch("src.orchestrator.load_config")
 def test_pipeline_runs_end_to_end(
-    mock_load_config, mock_collect, mock_weather,
-    mock_briefing, mock_publisher_cls, tmp_path,
+    mock_load_config, mock_collect, mock_weather, mock_ssml,
+    mock_briefing, mock_publisher_cls, mock_polly_cls,
+    mock_convert, mock_upload, mock_cleanup_s3, tmp_path,
 ):
     from src.collector.base import Article
     from src.editor.briefing import BriefingSegment
@@ -27,7 +33,7 @@ def test_pipeline_runs_end_to_end(
         weather=WeatherConfig(city="Test", lat=0.0, lon=0.0),
         editor=EditorConfig(model="claude-haiku-4-5-20251001", max_general_news=5, max_tech_news=10),
         audio=AudioConfig(engine="polly", voice="Lea", output_dir=str(tmp_path), retention_days=7),
-        publisher=PublisherConfig(ha_media_dir=str(tmp_path / "ha"), media_player_entity="media_player.echo"),
+        publisher=PublisherConfig(ha_media_dir=str(tmp_path / "ha"), media_player_entity="media_player.chambre", s3_bucket="test-bucket"),
         logging=LoggingConfig(level="INFO", log_dir=str(tmp_path / "logs")),
         sources=(),
         secrets=Secrets(anthropic_api_key="test", owm_api_key="test", ha_url="http://localhost:8123", ha_token="test"),
@@ -42,6 +48,12 @@ def test_pipeline_runs_end_to_end(
         BriefingSegment(type="intro", text="Bonjour."),
         BriefingSegment(type="outro", text="A demain."),
     ]
+    mock_ssml.return_value = "<speak>Bonjour. A demain.</speak>"
+    mock_polly = MagicMock()
+    mock_polly_cls.return_value = mock_polly
+    mock_polly.synthesize.return_value = tmp_path / "test.mp3"
+    mock_convert.return_value = tmp_path / "test.alexa.mp3"
+    mock_upload.return_value = "https://test-bucket.s3.us-east-2.amazonaws.com/veille-techno/test.alexa.mp3"
     mock_publisher = MagicMock()
     mock_publisher_cls.return_value = mock_publisher
 
@@ -50,12 +62,14 @@ def test_pipeline_runs_end_to_end(
     mock_collect.assert_called_once()
     mock_weather.assert_called_once()
     mock_briefing.assert_called_once()
-    # Verify briefing text saved to file
-    saved_file = tmp_path / "ha" / "latest_briefing.txt"
-    assert saved_file.exists()
-    text = saved_file.read_text(encoding="utf-8")
-    assert "Bonjour." in text
-    assert "A demain." in text
+    mock_ssml.assert_called_once()
+    mock_polly.synthesize.assert_called_once()
+    mock_convert.assert_called_once()
+    mock_upload.assert_called_once()
+    # Verify S3 URL saved to file
+    url_file = tmp_path / "ha" / "latest_briefing_url.txt"
+    assert url_file.exists()
+    assert "test-bucket" in url_file.read_text(encoding="utf-8")
 
 
 @patch("src.orchestrator.HomeAssistantPublisher")
@@ -187,22 +201,23 @@ def test_play_briefing_sends_tts(mock_load_config, mock_publisher_cls, tmp_path)
         sources=(),
         secrets=Secrets(anthropic_api_key="test", owm_api_key="test", ha_url="http://localhost:8123", ha_token="test"),
     )
-    # Create the briefing file
+    # Create the URL file
     ha_dir = tmp_path / "ha"
     ha_dir.mkdir(parents=True)
-    (ha_dir / "latest_briefing.txt").write_text("Bonjour, voici le briefing.", encoding="utf-8")
+    s3_url = "https://bucket.s3.us-east-2.amazonaws.com/veille-techno/briefing.alexa.mp3"
+    (ha_dir / "latest_briefing_url.txt").write_text(s3_url, encoding="utf-8")
 
     mock_publisher = MagicMock()
     mock_publisher_cls.return_value = mock_publisher
 
     play_briefing(config_path=tmp_path / "settings.yaml")
 
-    mock_publisher.play_tts.assert_called_once_with("Bonjour, voici le briefing.")
+    mock_publisher.play_tts.assert_called_once_with(f"<audio src='{s3_url}'/>")
 
 
 @patch("src.orchestrator.HomeAssistantPublisher")
 @patch("src.orchestrator.load_config")
-def test_play_briefing_no_file(mock_load_config, mock_publisher_cls, tmp_path):
+def test_play_briefing_no_url_file(mock_load_config, mock_publisher_cls, tmp_path):
     from src.config import (
         Settings, WeatherConfig, EditorConfig, AudioConfig,
         PublisherConfig, LoggingConfig, Secrets,

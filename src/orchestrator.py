@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import logging
 import time
+from datetime import date
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -18,7 +19,10 @@ from src.collector.github_trending import GitHubTrendingSource
 from src.collector.dedup import deduplicate
 from src.weather.forecast import fetch_weather
 from src.editor.briefing import generate_briefing
+from src.editor.ssml import build_ssml
+from src.audio.polly import PollyTTS, convert_for_alexa
 from src.publisher.homeassistant import HomeAssistantPublisher
+from src.publisher.s3 import upload_to_s3, cleanup_s3
 
 logger = logging.getLogger("veille_techno")
 
@@ -130,12 +134,34 @@ def run_pipeline(config_path: Path) -> None:
         )
         logger.info("Briefing: %d segments in %.1fs", len(segments), time.monotonic() - start)
 
-        logger.info("Step 4: Saving briefing text...")
-        briefing_text = " ".join(seg.text for seg in segments)
-        output_path = Path(settings.publisher.ha_media_dir) / "latest_briefing.txt"
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(briefing_text, encoding="utf-8")
-        logger.info("Briefing saved to %s (%d chars)", output_path, len(briefing_text))
+        logger.info("Step 4: Synthesizing audio...")
+        start = time.monotonic()
+        ssml = build_ssml(segments)
+        tts = PollyTTS(voice=settings.audio.voice, output_dir=settings.audio.output_dir)
+        today = date.today().isoformat()
+        mp3_path = tts.synthesize(ssml, f"briefing-{today}")
+        logger.info("Audio synthesized in %.1fs", time.monotonic() - start)
+
+        logger.info("Step 5: Converting for Alexa...")
+        start = time.monotonic()
+        alexa_mp3 = convert_for_alexa(mp3_path)
+        logger.info("Converted in %.1fs", time.monotonic() - start)
+
+        logger.info("Step 6: Uploading to S3...")
+        start = time.monotonic()
+        if not settings.publisher.s3_bucket:
+            logger.error("No S3 bucket configured — cannot upload")
+            publisher.notify_failure("No S3 bucket configured")
+            return
+        s3_url = upload_to_s3(alexa_mp3, settings.publisher.s3_bucket)
+        cleanup_s3(settings.publisher.s3_bucket)
+        logger.info("Uploaded in %.1fs: %s", time.monotonic() - start, s3_url)
+
+        # Save S3 URL for play command
+        url_path = Path(settings.publisher.ha_media_dir) / "latest_briefing_url.txt"
+        url_path.parent.mkdir(parents=True, exist_ok=True)
+        url_path.write_text(s3_url, encoding="utf-8")
+        logger.info("S3 URL saved to %s", url_path)
 
         logger.info("=== Prepare complete ===")
 
@@ -145,18 +171,18 @@ def run_pipeline(config_path: Path) -> None:
 
 
 def play_briefing(config_path: Path) -> None:
-    """Read saved briefing text and send via TTS."""
+    """Read saved S3 URL and play MP3 via notify.alexa_media audio tag."""
     settings = load_config(config_path)
     _setup_logging(settings)
 
-    text_path = Path(settings.publisher.ha_media_dir) / "latest_briefing.txt"
-    if not text_path.exists():
-        logger.error("No briefing found at %s — run --prepare first", text_path)
+    url_path = Path(settings.publisher.ha_media_dir) / "latest_briefing_url.txt"
+    if not url_path.exists():
+        logger.error("No briefing URL found at %s — run --prepare first", url_path)
         return
 
-    text = text_path.read_text(encoding="utf-8")
-    if not text.strip():
-        logger.error("Briefing file is empty at %s", text_path)
+    s3_url = url_path.read_text(encoding="utf-8").strip()
+    if not s3_url:
+        logger.error("Briefing URL file is empty at %s", url_path)
         return
 
     publisher = HomeAssistantPublisher(
@@ -166,8 +192,9 @@ def play_briefing(config_path: Path) -> None:
         media_player_entity=settings.publisher.media_player_entity,
         s3_bucket=settings.publisher.s3_bucket,
     )
-    publisher.play_tts(text)
-    logger.info("Briefing played (%d chars)", len(text))
+    message = f"<audio src='{s3_url}'/>"
+    publisher.play_tts(message)
+    logger.info("Briefing audio triggered: %s", s3_url)
 
 
 def run_dry_run(config_path: Path) -> None:
