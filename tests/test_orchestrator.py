@@ -6,15 +6,13 @@ from src.orchestrator import run_pipeline, run_dry_run, collect_all, _build_sour
 
 
 @patch("src.orchestrator.HomeAssistantPublisher")
-@patch("src.orchestrator.PollyTTS")
 @patch("src.orchestrator.generate_briefing")
-@patch("src.orchestrator.build_ssml")
 @patch("src.orchestrator.fetch_weather")
 @patch("src.orchestrator.collect_all")
 @patch("src.orchestrator.load_config")
 def test_pipeline_runs_end_to_end(
-    mock_load_config, mock_collect, mock_weather, mock_ssml,
-    mock_briefing, mock_polly_cls, mock_publisher_cls, tmp_path,
+    mock_load_config, mock_collect, mock_weather,
+    mock_briefing, mock_publisher_cls, tmp_path,
 ):
     from src.collector.base import Article
     from src.editor.briefing import BriefingSegment
@@ -44,10 +42,6 @@ def test_pipeline_runs_end_to_end(
         BriefingSegment(type="intro", text="Bonjour."),
         BriefingSegment(type="outro", text="A demain."),
     ]
-    mock_ssml.return_value = "<speak>Bonjour. A demain.</speak>"
-    mock_polly = MagicMock()
-    mock_polly_cls.return_value = mock_polly
-    mock_polly.synthesize.return_value = tmp_path / "test.mp3"
     mock_publisher = MagicMock()
     mock_publisher_cls.return_value = mock_publisher
 
@@ -56,10 +50,11 @@ def test_pipeline_runs_end_to_end(
     mock_collect.assert_called_once()
     mock_weather.assert_called_once()
     mock_briefing.assert_called_once()
-    mock_ssml.assert_called_once()
-    mock_polly.synthesize.assert_called_once()
-    mock_publisher.publish_and_play.assert_called_once()
-    mock_publisher.cleanup.assert_called_once()
+    mock_publisher.play_tts.assert_called_once()
+    # Verify the TTS text contains both segments
+    tts_text = mock_publisher.play_tts.call_args[0][0]
+    assert "Bonjour." in tts_text
+    assert "A demain." in tts_text
 
 
 @patch("src.orchestrator.HomeAssistantPublisher")
@@ -92,14 +87,13 @@ def test_pipeline_aborts_when_not_enough_articles(
 
 
 @patch("src.orchestrator.HomeAssistantPublisher")
-@patch("src.orchestrator.PollyTTS")
 @patch("src.orchestrator.generate_briefing")
 @patch("src.orchestrator.fetch_weather")
 @patch("src.orchestrator.collect_all")
 @patch("src.orchestrator.load_config")
 def test_pipeline_handles_exception_and_notifies(
     mock_load_config, mock_collect, mock_weather, mock_generate,
-    mock_polly_cls, mock_publisher_cls, tmp_path,
+    mock_publisher_cls, tmp_path,
 ):
     from src.config import (
         Settings, WeatherConfig, EditorConfig, AudioConfig,

@@ -53,9 +53,9 @@ class HomeAssistantPublisher:
         # Trigger playback via HA API
         self._play_on_echo(s3_url)
 
-    def _play_on_echo(self, media_url: str) -> None:
-        """Call HA media_player.play_media to play on Echo."""
-        url = f"{self.ha_url}/api/services/media_player/play_media"
+    def play_tts(self, text: str) -> None:
+        """Send briefing text via notify.alexa_media TTS."""
+        url = f"{self.ha_url}/api/services/notify/alexa_media"
         try:
             response = requests.post(
                 url,
@@ -64,16 +64,18 @@ class HomeAssistantPublisher:
                     "Content-Type": "application/json",
                 },
                 json={
-                    "entity_id": self.media_player_entity,
-                    "media_content_id": media_url,
-                    "media_content_type": "music",
+                    "message": text,
+                    "target": self.media_player_entity,
+                    "data": {"type": "tts"},
                 },
-                timeout=10,
+                timeout=30,
             )
             response.raise_for_status()
-            logger.info("Playback triggered on %s", self.media_player_entity)
-        except Exception:
-            logger.error("Failed to trigger playback on %s", self.media_player_entity)
+            logger.info("TTS triggered on %s (%d chars)", self.media_player_entity, len(text))
+        except requests.exceptions.HTTPError:
+            logger.error("TTS failed on %s: HTTP %s", self.media_player_entity, response.status_code)
+        except requests.exceptions.RequestException:
+            logger.error("TTS failed on %s: connection error", self.media_player_entity, exc_info=True)
 
     def notify_failure(self, message: str) -> None:
         """Send a persistent notification via HA API."""

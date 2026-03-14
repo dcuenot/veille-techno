@@ -7,7 +7,6 @@ from __future__ import annotations
 import argparse
 import logging
 import time
-from datetime import date
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -19,8 +18,6 @@ from src.collector.github_trending import GitHubTrendingSource
 from src.collector.dedup import deduplicate
 from src.weather.forecast import fetch_weather
 from src.editor.briefing import generate_briefing
-from src.editor.ssml import build_ssml
-from src.audio.polly import PollyTTS
 from src.publisher.homeassistant import HomeAssistantPublisher
 
 logger = logging.getLogger("veille_techno")
@@ -133,20 +130,11 @@ def run_pipeline(config_path: Path) -> None:
         )
         logger.info("Briefing: %d segments in %.1fs", len(segments), time.monotonic() - start)
 
-        logger.info("Step 4: Synthesizing audio...")
+        logger.info("Step 4: Delivering briefing via TTS...")
         start = time.monotonic()
-        ssml = build_ssml(segments)
-        logger.info("SSML generated: %d chars, first chunk preview: %.300s", len(ssml), ssml)
-        tts = PollyTTS(voice=settings.audio.voice, output_dir=settings.audio.output_dir)
-        today = date.today().isoformat()
-        mp3_path = tts.synthesize(ssml, f"briefing-{today}")
-        logger.info("Audio synthesized in %.1fs", time.monotonic() - start)
-
-        logger.info("Step 5: Publishing to Home Assistant...")
-        start = time.monotonic()
-        publisher.publish_and_play(mp3_path)
-        publisher.cleanup(retention_days=settings.audio.retention_days)
-        logger.info("Published in %.1fs", time.monotonic() - start)
+        briefing_text = " ".join(seg.text for seg in segments)
+        publisher.play_tts(briefing_text)
+        logger.info("TTS delivered in %.1fs (%d chars)", time.monotonic() - start, len(briefing_text))
 
         logger.info("=== Pipeline complete ===")
 
