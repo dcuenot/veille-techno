@@ -55,15 +55,34 @@ def chunk_ssml(ssml: str, max_chars: int = MAX_SSML_CHARS) -> list[str]:
             chunks.append(f"{wrapper_open}{remaining}{wrapper_close}")
             break
 
-        split_at = remaining[:max_inner].rfind(". ")
-        if split_at != -1:
-            split_at += 2
-        else:
-            split_at = remaining[:max_inner].rfind(" ")
+        # Best: split right after a <break .../> tag within the limit
+        search_region = remaining[:max_inner]
+        split_at = -1
+        for m in re.finditer(r'<break[^/]*/>', search_region):
+            split_at = m.end()
+
+        # Fallback: split after ". " sentence boundary
+        if split_at == -1:
+            split_at = search_region.rfind(". ")
+            if split_at != -1:
+                split_at += 2
+
+        # Fallback: split at space
+        if split_at == -1:
+            split_at = search_region.rfind(" ")
             if split_at != -1:
                 split_at += 1
-            else:
-                split_at = max_inner
+
+        # Last resort: hard split at limit
+        if split_at <= 0:
+            split_at = max_inner
+
+        # Safety: never split inside an XML tag — back up before the '<'
+        tag_open = remaining[:split_at].rfind("<")
+        tag_close = remaining[:split_at].rfind(">")
+        if tag_open > tag_close:
+            # We're inside an unclosed tag; back up to before it
+            split_at = tag_open
 
         chunk_text = remaining[:split_at]
         remaining = remaining[split_at:]
@@ -175,6 +194,7 @@ class PollyTTS(TTSEngine):
                 return response["AudioStream"].read()
             except Exception as e:
                 logger.warning("Polly synthesis error (attempt %d): %s", i + 1, e)
+                logger.debug("Failing SSML chunk (%.500s...)", ssml)
                 if i < MAX_RETRIES - 1:
                     time.sleep(2 ** i)
                 else:

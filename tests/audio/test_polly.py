@@ -35,6 +35,43 @@ def test_chunk_ssml_preserves_all_text():
     assert recombined == body
 
 
+def test_chunk_ssml_splits_on_break_tags():
+    """Prefer splitting at <break/> boundaries, never inside a tag."""
+    inner = (
+        'Phrase un.<break strength="strong"/> '
+        'Phrase deux.<break strength="strong"/> '
+        'Phrase trois.<break strength="x-strong"/> '
+        'Phrase quatre.'
+    )
+    ssml = f"<speak>{inner}</speak>"
+    # Force a small limit so it must split
+    chunks = chunk_ssml(ssml, max_chars=80)
+    assert len(chunks) >= 2
+    for chunk in chunks:
+        assert chunk.startswith("<speak>")
+        assert chunk.endswith("</speak>")
+        # No chunk should contain a broken/truncated XML tag
+        import re
+        # Every < should have a matching >
+        tags = re.findall(r'<[^>]*$', chunk.replace("<speak>", "").replace("</speak>", ""))
+        assert tags == [], f"Broken tag found in chunk: {chunk}"
+
+
+def test_chunk_ssml_preserves_prosody_with_breaks():
+    """Chunking with prosody wrapper and break tags should produce valid SSML."""
+    inner = (
+        'Bonjour.<break strength="strong"/> '
+        'Les nouvelles du jour.<break strength="x-strong"/> '
+        'A demain.'
+    )
+    ssml = f'<speak><prosody rate="95%" volume="x-loud">{inner}</prosody></speak>'
+    chunks = chunk_ssml(ssml, max_chars=120)
+    assert len(chunks) >= 2
+    for chunk in chunks:
+        assert '<prosody rate="95%" volume="x-loud">' in chunk
+        assert "</prosody></speak>" in chunk
+
+
 @patch("src.audio.polly.AudioSegment")
 @patch("src.audio.polly.boto3.client")
 def test_polly_synthesize_creates_mp3(
