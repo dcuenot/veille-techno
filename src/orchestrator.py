@@ -95,6 +95,7 @@ def run_pipeline(config_path: Path) -> None:
         ha_url=settings.secrets.ha_url,
         ha_token=settings.secrets.ha_token,
         media_player_entity=settings.publisher.media_player_entity,
+        s3_bucket=settings.publisher.s3_bucket,
     )
 
     try:
@@ -143,7 +144,7 @@ def run_pipeline(config_path: Path) -> None:
 
         logger.info("Step 5: Publishing to Home Assistant...")
         start = time.monotonic()
-        publisher.publish(mp3_path)
+        publisher.publish_and_play(mp3_path)
         publisher.cleanup(retention_days=settings.audio.retention_days)
         logger.info("Published in %.1fs", time.monotonic() - start)
 

@@ -29,6 +29,7 @@ POLLY_VOICE=$(jq -r '.polly_voice' "$OPTIONS_FILE")
 WEATHER_CITY=$(jq -r '.weather_city' "$OPTIONS_FILE")
 WEATHER_LAT=$(jq -r '.weather_lat' "$OPTIONS_FILE")
 WEATHER_LON=$(jq -r '.weather_lon' "$OPTIONS_FILE")
+S3_BUCKET=$(jq -r '.s3_bucket // ""' "$OPTIONS_FILE")
 MEDIA_PLAYER=$(jq -r '.media_player_entity' "$OPTIONS_FILE")
 EDITOR_MODEL=$(jq -r '.editor_model' "$OPTIONS_FILE")
 MAX_GENERAL=$(jq -r '.max_general_news' "$OPTIONS_FILE")
@@ -59,6 +60,7 @@ audio:
 publisher:
   ha_media_dir: "/media/veille-techno"
   media_player_entity: "${MEDIA_PLAYER}"
+  s3_bucket: "${S3_BUCKET}"
 
 logging:
   level: "${LOG_LEVEL}"

@@ -25,6 +25,7 @@ options:
   weather_city: "Fontenay-sous-Bois"
   weather_lat: 48.8566
   weather_lon: 2.4739
+  s3_bucket: ""
   media_player_entity: "media_player.echo_salon"
   editor_model: "claude-haiku-4-5-20251001"
   max_general_news: 5
@@ -43,6 +44,7 @@ schema:
   weather_city: str
   weather_lat: float
   weather_lon: float
+  s3_bucket: "str?"
   media_player_entity: str
   editor_model: str
   max_general_news: "int(1,10)"

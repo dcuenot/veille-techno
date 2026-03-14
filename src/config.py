@@ -34,6 +34,7 @@ class AudioConfig:
 class PublisherConfig:
     ha_media_dir: str
     media_player_entity: str
+    s3_bucket: str = ""
 
 
 @dataclass(frozen=True)

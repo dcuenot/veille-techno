@@ -58,7 +58,7 @@ def test_pipeline_runs_end_to_end(
     mock_briefing.assert_called_once()
     mock_ssml.assert_called_once()
     mock_polly.synthesize.assert_called_once()
-    mock_publisher.publish.assert_called_once()
+    mock_publisher.publish_and_play.assert_called_once()
     mock_publisher.cleanup.assert_called_once()
 
 
