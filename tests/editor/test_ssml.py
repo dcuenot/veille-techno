@@ -19,7 +19,7 @@ def test_build_ssml_adds_breaks_between_segments():
         BriefingSegment(type="outro", text="A demain."),
     ]
     ssml = build_ssml(segments)
-    assert '<break time="800ms"/>' in ssml
+    assert '<break strength="strong"/>' in ssml
 
 
 def test_build_ssml_adds_long_break_before_tech():
@@ -30,7 +30,7 @@ def test_build_ssml_adds_long_break_before_tech():
         BriefingSegment(type="outro", text="A demain."),
     ]
     ssml = build_ssml(segments)
-    assert '<break time="1500ms"/>' in ssml
+    assert '<break strength="x-strong"/>' in ssml
 
 
 def test_build_ssml_adds_long_break_before_outro():
@@ -39,7 +39,7 @@ def test_build_ssml_adds_long_break_before_outro():
         BriefingSegment(type="outro", text="Bonne journee."),
     ]
     ssml = build_ssml(segments)
-    assert '<break time="1500ms"/>' in ssml
+    assert '<break strength="x-strong"/>' in ssml
 
 
 def test_build_ssml_applies_prosody():
@@ -55,7 +55,7 @@ def test_build_ssml_adds_sentence_breaks():
         BriefingSegment(type="news", text="Premiere nouvelle. Deuxieme nouvelle. Troisieme."),
     ]
     ssml = build_ssml(segments)
-    assert '<break time="400ms"/>' in ssml
+    assert '<break strength="strong"/>' in ssml
 
 
 def test_build_ssml_escapes_special_chars():

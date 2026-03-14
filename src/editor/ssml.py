@@ -8,16 +8,16 @@ from src.editor.briefing import BriefingSegment
 
 logger = logging.getLogger(__name__)
 
-# Pauses between segments
-BREAK_BETWEEN = '<break time="800ms"/>'
-BREAK_SECTION = '<break time="1500ms"/>'
-
+# Pauses between segments (sentence-level)
+BREAK_BETWEEN = '<break strength="strong"/>'
+# Pauses between sections (paragraph-level)
+BREAK_SECTION = '<break strength="x-strong"/>'
 # Pause after each sentence within a segment
-BREAK_SENTENCE = '<break time="400ms"/>'
+BREAK_SENTENCE = '<break strength="strong"/>'
 
 
 def _add_sentence_breaks(text: str) -> str:
-    """Insert short pauses after sentence-ending punctuation."""
+    """Insert sentence-level pauses after sentence-ending punctuation."""
     # Add break after . ! ? followed by a space and uppercase letter
     result = re.sub(
         r'([.!?])\s+(?=[A-ZÀ-ÖÙ-Ü])',
