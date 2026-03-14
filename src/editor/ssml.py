@@ -29,7 +29,7 @@ def _add_sentence_breaks(text: str) -> str:
 
 def build_ssml(segments: list[BriefingSegment]) -> str:
     """Build SSML from briefing segments with pauses and prosody."""
-    parts: list[str] = ['<speak><amazon:auto-breaths><prosody rate="95%" volume="x-loud">']
+    parts: list[str] = ['<speak><prosody rate="95%" volume="x-loud">']
 
     news_count = 0
     for i, segment in enumerate(segments):
@@ -49,7 +49,7 @@ def build_ssml(segments: list[BriefingSegment]) -> str:
         if segment.type == "news":
             news_count += 1
 
-    parts.append("</prosody></amazon:auto-breaths></speak>")
+    parts.append("</prosody></speak>")
     result = "".join(parts)
     logger.debug("Generated SSML (%d chars): %.500s...", len(result), result)
     return result
