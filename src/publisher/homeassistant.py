@@ -77,6 +77,24 @@ class HomeAssistantPublisher:
         except requests.exceptions.RequestException:
             logger.error("TTS failed on %s: connection error", self.media_player_entity, exc_info=True)
 
+    def fire_event(self, event_type: str, event_data: dict | None = None) -> None:
+        """Fire a custom event on HA event bus."""
+        url = f"{self.ha_url}/api/events/{event_type}"
+        try:
+            response = requests.post(
+                url,
+                headers={
+                    "Authorization": f"Bearer {self.ha_token}",
+                    "Content-Type": "application/json",
+                },
+                json=event_data or {},
+                timeout=10,
+            )
+            response.raise_for_status()
+            logger.info("Event %s fired", event_type)
+        except Exception:
+            logger.error("Failed to fire event %s", event_type, exc_info=True)
+
     def notify_failure(self, message: str) -> None:
         """Send a persistent notification via HA API."""
         url = f"{self.ha_url}/api/services/notify/persistent_notification"

@@ -209,6 +209,9 @@ def play_briefing(config_path: Path) -> None:
         publisher.play_tts(message)
         logger.info("Chunk %d/%d triggered", i + 1, len(s3_urls))
 
+    publisher.fire_event("veille_techno_play_done", {"chunks": len(s3_urls)})
+    logger.info("Play complete, event fired")
+
 
 def run_dry_run(config_path: Path) -> None:
     """Validate config, test API keys, and source connectivity."""
