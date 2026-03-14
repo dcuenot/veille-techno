@@ -14,7 +14,7 @@ BREAK_LONG = '<break time="1200ms"/>'
 
 def build_ssml(segments: list[BriefingSegment]) -> str:
     """Build SSML from briefing segments with pauses and prosody."""
-    parts: list[str] = ['<speak><prosody rate="95%">']
+    parts: list[str] = ['<speak><prosody rate="95%" volume="x-loud">']
 
     news_count = 0
     for i, segment in enumerate(segments):
