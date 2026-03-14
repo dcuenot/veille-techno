@@ -47,8 +47,10 @@ def test_build_ssml_applies_prosody():
         BriefingSegment(type="intro", text="Bonjour."),
     ]
     ssml = build_ssml(segments)
+    assert '<amazon:domain name="news">' in ssml
     assert "<amazon:auto-breaths>" in ssml
     assert '<prosody rate="95%" volume="x-loud">' in ssml
+    assert "</amazon:domain>" in ssml
 
 
 def test_build_ssml_adds_sentence_breaks():
