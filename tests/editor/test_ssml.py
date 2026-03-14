@@ -47,7 +47,7 @@ def test_build_ssml_applies_prosody():
         BriefingSegment(type="intro", text="Bonjour."),
     ]
     ssml = build_ssml(segments)
-    assert '<prosody rate="95%" volume="x-loud">' in ssml
+    assert '<prosody rate="95%" volume="+9dB">' in ssml
 
 
 def test_build_ssml_adds_sentence_breaks():
