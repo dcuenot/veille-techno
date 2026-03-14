@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from src.orchestrator import run_pipeline, run_dry_run, collect_all, _build_sources
+from src.orchestrator import run_pipeline, run_dry_run, play_briefing, collect_all, _build_sources
 
 
 @patch("src.orchestrator.HomeAssistantPublisher")
@@ -50,11 +50,12 @@ def test_pipeline_runs_end_to_end(
     mock_collect.assert_called_once()
     mock_weather.assert_called_once()
     mock_briefing.assert_called_once()
-    mock_publisher.play_tts.assert_called_once()
-    # Verify the TTS text contains both segments
-    tts_text = mock_publisher.play_tts.call_args[0][0]
-    assert "Bonjour." in tts_text
-    assert "A demain." in tts_text
+    # Verify briefing text saved to file
+    saved_file = tmp_path / "ha" / "latest_briefing.txt"
+    assert saved_file.exists()
+    text = saved_file.read_text(encoding="utf-8")
+    assert "Bonjour." in text
+    assert "A demain." in text
 
 
 @patch("src.orchestrator.HomeAssistantPublisher")
@@ -167,6 +168,61 @@ def test_dry_run_all_ok(mock_load_config, mock_weather, tmp_path):
 
     run_dry_run(config_path=tmp_path / "settings.yaml")
     # should complete without errors
+
+
+@patch("src.orchestrator.HomeAssistantPublisher")
+@patch("src.orchestrator.load_config")
+def test_play_briefing_sends_tts(mock_load_config, mock_publisher_cls, tmp_path):
+    from src.config import (
+        Settings, WeatherConfig, EditorConfig, AudioConfig,
+        PublisherConfig, LoggingConfig, Secrets,
+    )
+    mock_load_config.return_value = Settings(
+        timezone="Europe/Paris",
+        weather=WeatherConfig(city="Test", lat=0.0, lon=0.0),
+        editor=EditorConfig(model="claude-haiku-4-5-20251001", max_general_news=5, max_tech_news=10),
+        audio=AudioConfig(engine="polly", voice="Lea", output_dir=str(tmp_path), retention_days=7),
+        publisher=PublisherConfig(ha_media_dir=str(tmp_path / "ha"), media_player_entity="media_player.chambre"),
+        logging=LoggingConfig(level="INFO", log_dir=str(tmp_path / "logs")),
+        sources=(),
+        secrets=Secrets(anthropic_api_key="test", owm_api_key="test", ha_url="http://localhost:8123", ha_token="test"),
+    )
+    # Create the briefing file
+    ha_dir = tmp_path / "ha"
+    ha_dir.mkdir(parents=True)
+    (ha_dir / "latest_briefing.txt").write_text("Bonjour, voici le briefing.", encoding="utf-8")
+
+    mock_publisher = MagicMock()
+    mock_publisher_cls.return_value = mock_publisher
+
+    play_briefing(config_path=tmp_path / "settings.yaml")
+
+    mock_publisher.play_tts.assert_called_once_with("Bonjour, voici le briefing.")
+
+
+@patch("src.orchestrator.HomeAssistantPublisher")
+@patch("src.orchestrator.load_config")
+def test_play_briefing_no_file(mock_load_config, mock_publisher_cls, tmp_path):
+    from src.config import (
+        Settings, WeatherConfig, EditorConfig, AudioConfig,
+        PublisherConfig, LoggingConfig, Secrets,
+    )
+    mock_load_config.return_value = Settings(
+        timezone="Europe/Paris",
+        weather=WeatherConfig(city="Test", lat=0.0, lon=0.0),
+        editor=EditorConfig(model="claude-haiku-4-5-20251001", max_general_news=5, max_tech_news=10),
+        audio=AudioConfig(engine="polly", voice="Lea", output_dir=str(tmp_path), retention_days=7),
+        publisher=PublisherConfig(ha_media_dir=str(tmp_path / "ha"), media_player_entity="media_player.chambre"),
+        logging=LoggingConfig(level="INFO", log_dir=str(tmp_path / "logs")),
+        sources=(),
+        secrets=Secrets(anthropic_api_key="test", owm_api_key="test", ha_url="http://localhost:8123", ha_token="test"),
+    )
+    mock_publisher = MagicMock()
+    mock_publisher_cls.return_value = mock_publisher
+
+    play_briefing(config_path=tmp_path / "settings.yaml")
+
+    mock_publisher.play_tts.assert_not_called()
 
 
 def test_collect_all_handles_source_failure():

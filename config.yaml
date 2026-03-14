@@ -10,6 +10,7 @@ startup: application
 boot: auto
 hassio_api: true
 homeassistant_api: true
+stdin: true
 map:
   - media:rw
 

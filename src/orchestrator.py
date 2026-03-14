@@ -130,17 +130,44 @@ def run_pipeline(config_path: Path) -> None:
         )
         logger.info("Briefing: %d segments in %.1fs", len(segments), time.monotonic() - start)
 
-        logger.info("Step 4: Delivering briefing via TTS...")
-        start = time.monotonic()
+        logger.info("Step 4: Saving briefing text...")
         briefing_text = " ".join(seg.text for seg in segments)
-        publisher.play_tts(briefing_text)
-        logger.info("TTS delivered in %.1fs (%d chars)", time.monotonic() - start, len(briefing_text))
+        output_path = Path(settings.publisher.ha_media_dir) / "latest_briefing.txt"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(briefing_text, encoding="utf-8")
+        logger.info("Briefing saved to %s (%d chars)", output_path, len(briefing_text))
 
-        logger.info("=== Pipeline complete ===")
+        logger.info("=== Prepare complete ===")
 
     except Exception as e:
         logger.error("Pipeline failed: %s", e, exc_info=True)
         publisher.notify_failure(f"Pipeline failed: {e}")
+
+
+def play_briefing(config_path: Path) -> None:
+    """Read saved briefing text and send via TTS."""
+    settings = load_config(config_path)
+    _setup_logging(settings)
+
+    text_path = Path(settings.publisher.ha_media_dir) / "latest_briefing.txt"
+    if not text_path.exists():
+        logger.error("No briefing found at %s — run --prepare first", text_path)
+        return
+
+    text = text_path.read_text(encoding="utf-8")
+    if not text.strip():
+        logger.error("Briefing file is empty at %s", text_path)
+        return
+
+    publisher = HomeAssistantPublisher(
+        ha_media_dir=settings.publisher.ha_media_dir,
+        ha_url=settings.secrets.ha_url,
+        ha_token=settings.secrets.ha_token,
+        media_player_entity=settings.publisher.media_player_entity,
+        s3_bucket=settings.publisher.s3_bucket,
+    )
+    publisher.play_tts(text)
+    logger.info("Briefing played (%d chars)", len(text))
 
 
 def run_dry_run(config_path: Path) -> None:
@@ -187,9 +214,23 @@ def main() -> None:
         action="store_true",
         help="Validate config and test API connectivity",
     )
+    parser.add_argument(
+        "--prepare",
+        action="store_true",
+        help="Collect news, generate briefing, save text (no TTS)",
+    )
+    parser.add_argument(
+        "--play",
+        action="store_true",
+        help="Play the latest saved briefing via TTS",
+    )
     args = parser.parse_args()
     if args.dry_run:
         run_dry_run(args.config)
+    elif args.play:
+        play_briefing(args.config)
+    elif args.prepare:
+        run_pipeline(args.config)
     else:
         run_pipeline(args.config)
 

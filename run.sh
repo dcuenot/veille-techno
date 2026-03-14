@@ -104,12 +104,29 @@ YAML
 echo "Configuration generated"
 echo "Schedule: every day at ${SCHEDULE_HOUR}:${SCHEDULE_MINUTE}"
 
-# Set up cron (no startup run to avoid double triggers on restart)
-CRON_LINE="${SCHEDULE_MINUTE} ${SCHEDULE_HOUR} * * * cd /app && ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY} AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION} OWM_API_KEY=${OWM_API_KEY} HA_URL=${HA_URL} HA_TOKEN=${HA_TOKEN} python3 -m src.orchestrator --config config/settings.yaml >> /app/logs/cron.log 2>&1"
+# Cron prepares the briefing text (no TTS)
+CRON_LINE="${SCHEDULE_MINUTE} ${SCHEDULE_HOUR} * * * cd /app && ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY} AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION} OWM_API_KEY=${OWM_API_KEY} HA_URL=${HA_URL} HA_TOKEN=${HA_TOKEN} python3 -m src.orchestrator --prepare --config config/settings.yaml >> /app/logs/cron.log 2>&1"
 
 echo "${CRON_LINE}" | crontab -
 
-echo "Cron scheduled. Waiting..."
+echo "Cron scheduled. Listening for stdin commands..."
 
-# Keep container alive and run cron in foreground
-crond -f
+# Start cron in background
+crond
+
+# Listen on stdin for "play" commands from HA (hassio.addon_stdin)
+while read -r CMD; do
+  case "$CMD" in
+    play)
+      echo "Received play command"
+      cd /app && python3 -m src.orchestrator --play --config config/settings.yaml 2>&1
+      ;;
+    prepare)
+      echo "Received prepare command"
+      cd /app && python3 -m src.orchestrator --prepare --config config/settings.yaml 2>&1
+      ;;
+    *)
+      echo "Unknown command: $CMD (valid: play, prepare)"
+      ;;
+  esac
+done
