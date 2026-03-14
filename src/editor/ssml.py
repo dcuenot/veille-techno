@@ -29,7 +29,7 @@ def _add_sentence_breaks(text: str) -> str:
 
 def build_ssml(segments: list[BriefingSegment]) -> str:
     """Build SSML from briefing segments with pauses and prosody."""
-    parts: list[str] = ['<speak><prosody rate="95%" volume="+9dB">']
+    parts: list[str] = ['<speak><prosody rate="95%" volume="x-loud">']
 
     news_count = 0
     for i, segment in enumerate(segments):
