@@ -26,7 +26,18 @@ class RSSSource(Source):
 
     def fetch(self) -> list[Article]:
         try:
-            response = requests.get(self.url, timeout=self.timeout)
+            response = requests.get(
+                self.url,
+                timeout=self.timeout,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
+                    "sec-ch-ua-mobile": "?0",
+                    "sec-ch-ua-platform": '"macOS"',
+                    "sec-fetch-dest": "document",
+                    "sec-fetch-site": "none",
+                    "sec-fetch-user": "?1",
+                },
+            )
             response.raise_for_status()
         except requests.exceptions.RequestException as e:
             logger.warning("Failed to fetch RSS feed %s: %s", self.name, e)

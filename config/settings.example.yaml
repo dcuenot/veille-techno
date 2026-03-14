@@ -9,7 +9,7 @@ weather:
 editor:
   model: claude-haiku-4-5-20251001
   max_general_news: 5
-  max_tech_news: 10
+  max_tech_news: 15
 
 audio:
   engine: polly
@@ -34,14 +34,23 @@ sources:
     type: rss
     url: https://www.francetvinfo.fr/titres.rss
     category: general
-  - name: Les Echos
+  - name: Les Echos Start-up
     type: rss
-    url: https://syndication.lesechos.fr/rss/rss_france.xml
-    category: general
-  - name: Reuters
+    url: https://services.lesechos.fr/rss/les-echos-start-up.xml
+    category: tech
+  - name: Les Echos Tech & Medias
     type: rss
-    url: https://www.reutersagency.com/feed/?best-topics=tech
+    url: https://services.lesechos.fr/rss/les-echos-tech-medias.xml
+    category: tech
+  - name: Les Echos Economie
+    type: rss
+    url: https://services.lesechos.fr/rss/les-echos-economie.xml
     category: general
+  - name: Les Echos Finance & Marches
+    type: rss
+    url: https://services.lesechos.fr/rss/les-echos-finance-marches.xml
+    category: general
+  # Reuters: RSS feeds discontinued, no viable alternative
   - name: BBC News
     type: rss
     url: https://feeds.bbci.co.uk/news/technology/rss.xml
@@ -60,13 +69,10 @@ sources:
     type: rss
     url: https://dev.to/feed
     category: tech
-  - name: Papers with Code
-    type: rss
-    url: https://paperswithcode.com/latest
-    category: tech
+  # Papers with Code: feed discontinued
   - name: Anthropic Blog
     type: rss
-    url: https://www.anthropic.com/rss.xml
+    url: https://raw.githubusercontent.com/taobojlen/anthropic-rss-feed/main/anthropic_news_rss.xml
     category: tech
   - name: OpenAI Blog
     type: rss
@@ -82,9 +88,25 @@ sources:
     category: tech
   - name: Google Cloud Blog
     type: rss
-    url: https://cloud.google.com/blog/feed
+    url: https://cloudblog.withgoogle.com/rss
     category: tech
   - name: The Hacker News Security
     type: rss
     url: https://feeds.feedburner.com/TheHackersNews
+    category: tech
+  - name: NowTech TV
+    type: rss
+    url: https://flipboard.com/@jkeinborg/nowtechtv-ogcbmgbby.rss
+    category: tech
+  - name: Korben
+    type: rss
+    url: https://korben.info/feed
+    category: tech
+  - name: Boris Cherny (Bluesky)
+    type: rss
+    url: https://bsky.app/profile/bcherny.bsky.social/rss
+    category: tech
+  - name: Arnaud Heritier (Bluesky)
+    type: rss
+    url: https://bsky.app/profile/aheritier.net/rss
     category: tech

@@ -32,19 +32,22 @@ class GitHubTrendingSource(Source):
         now = datetime.now(timezone.utc)
 
         article_pattern = re.compile(r'<article class="Box-row">(.*?)</article>', re.DOTALL)
-        href_pattern = re.compile(r'<a href="(/[^"]+)"[^>]*>([^<]*)</a>')
-        desc_pattern = re.compile(r'<p class="[^"]*color-fg-muted[^"]*"[^>]*>\s*([^<]*?)\s*</p>')
+        h2_pattern = re.compile(r'<h2[^>]*>(.*?)</h2>', re.DOTALL)
+        desc_pattern = re.compile(r'<p class="[^"]*color-fg-muted[^"]*"[^>]*>\s*(.*?)\s*</p>', re.DOTALL)
 
         for article_match in article_pattern.finditer(html):
             body = article_match.group(1)
-            href_m = href_pattern.search(body)
+            h2_m = h2_pattern.search(body)
+            if not h2_m:
+                continue
+            href_m = re.search(r'href="(/[^"]+)"', h2_m.group(1))
             if not href_m:
                 continue
             desc_m = desc_pattern.search(body)
 
             path = href_m.group(1).strip()
-            name = re.sub(r"\s+", " ", href_m.group(2)).strip()
-            description = desc_m.group(1).strip() if desc_m else ""
+            name = path.lstrip("/")
+            description = re.sub(r"\s+", " ", desc_m.group(1)).strip() if desc_m else ""
 
             articles.append(
                 Article(

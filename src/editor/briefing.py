@@ -24,7 +24,8 @@ REGLES :
 - Pas de jargon non explique
 - Pas d'URLs
 - Transitions naturelles entre les sujets
-- Le briefing doit durer environ 7-8 minutes a la lecture
+- Le briefing doit durer environ 10 a 15 minutes a la lecture
+- Les articles marques [PRIORITAIRE] proviennent de sources de confiance (curation humaine). Privilegie-les dans ta selection tech, sauf s'ils sont redondants avec d'autres articles deja selectionnes.
 
 FORMAT DE SORTIE (JSON strict) :
 {
@@ -32,7 +33,7 @@ FORMAT DE SORTIE (JSON strict) :
     {"type": "intro", "text": "Bonjour, c'est [jour] [date], voici votre briefing du matin."},
     {"type": "weather", "text": "Cote meteo a [ville], [conditions]."},
     {"type": "news", "text": "Dans l'essentiel aujourd'hui... [3-5 news actu generale avec transitions]"},
-    {"type": "news", "text": "Cote tech maintenant... [10 news tech avec contexte et analyse]"},
+    {"type": "news", "text": "Cote tech maintenant... [15 news tech avec contexte et analyse]"},
     {"type": "outro", "text": "Bonne journee, et a demain."}
   ]
 }
@@ -128,9 +129,13 @@ def _build_user_prompt(
     )
     parts.append("")
 
+    # Sources with human curation get priority tag
+    priority_sources = {"NowTech TV"}
+
     for i, article in enumerate(articles, 1):
+        priority_tag = " [PRIORITAIRE]" if article.source in priority_sources else ""
         parts.append(
-            f"{i}. [{article.category}] [{article.source}] {article.title}"
+            f"{i}. [{article.category}] [{article.source}]{priority_tag} {article.title}"
         )
         parts.append(f"   Date : {article.published_at.isoformat()}")
         parts.append(f"   Resume : {article.summary}")
