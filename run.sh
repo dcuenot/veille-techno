@@ -114,8 +114,10 @@ echo "Cron scheduled. Listening for stdin commands..."
 # Start cron in background
 crond
 
-# Listen on stdin for "play" commands from HA (hassio.addon_stdin)
+# Listen on stdin for commands from HA (hassio.addon_stdin)
+# Strip quotes — HA may send "play" instead of play
 while read -r CMD; do
+  CMD=$(echo "$CMD" | tr -d '"')
   case "$CMD" in
     play)
       echo "Received play command"
