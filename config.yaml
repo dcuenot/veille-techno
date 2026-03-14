@@ -26,7 +26,7 @@ options:
   weather_lat: 48.8566
   weather_lon: 2.4739
   s3_bucket: ""
-  media_player_entity: "media_player.echo_salon"
+  media_player_entity: "media_player.chambre"
   editor_model: "claude-haiku-4-5-20251001"
   max_general_news: 5
   max_tech_news: 10

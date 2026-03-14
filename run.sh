@@ -104,11 +104,7 @@ YAML
 echo "Configuration generated"
 echo "Schedule: every day at ${SCHEDULE_HOUR}:${SCHEDULE_MINUTE}"
 
-# Run once at startup
-echo "Running initial briefing..."
-cd /app && python3 -m src.orchestrator --config config/settings.yaml 2>&1 || true
-
-# Set up cron
+# Set up cron (no startup run to avoid double triggers on restart)
 CRON_LINE="${SCHEDULE_MINUTE} ${SCHEDULE_HOUR} * * * cd /app && ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY} AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION} OWM_API_KEY=${OWM_API_KEY} HA_URL=${HA_URL} HA_TOKEN=${HA_TOKEN} python3 -m src.orchestrator --config config/settings.yaml >> /app/logs/cron.log 2>&1"
 
 echo "${CRON_LINE}" | crontab -
