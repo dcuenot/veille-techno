@@ -8,10 +8,10 @@ from src.editor.briefing import BriefingSegment
 
 logger = logging.getLogger(__name__)
 
-# Pauses between segments (sentence-level)
-BREAK_BETWEEN = '<break strength="strong"/>'
-# Pauses between sections (paragraph-level)
-BREAK_SECTION = '<break strength="x-strong"/>'
+# Pauses between news segments (between articles)
+BREAK_BETWEEN = '<break time="1.2s"/>'
+# Pauses between sections (intro->news, news->tech, tech->outro)
+BREAK_SECTION = '<break time="2s"/>'
 # Pause after each sentence within a segment
 BREAK_SENTENCE = '<break strength="strong"/>'
 

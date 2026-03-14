@@ -32,11 +32,15 @@ FORMAT DE SORTIE (JSON strict) :
   "segments": [
     {"type": "intro", "text": "Bonjour, c'est [jour] [date], voici votre briefing du matin."},
     {"type": "weather", "text": "Cote meteo a [ville], [conditions]."},
-    {"type": "news", "text": "Dans l'essentiel aujourd'hui... [3-5 news actu generale avec transitions]"},
-    {"type": "news", "text": "Cote tech maintenant... [15 news tech avec contexte et analyse]"},
+    {"type": "news", "text": "Dans l'essentiel aujourd'hui. [transition et resume du 1er sujet actu generale]"},
+    {"type": "news", "text": "[transition et resume du 2e sujet actu generale]"},
+    {"type": "news", "text": "Cote tech maintenant. [transition et resume du 1er sujet tech]"},
+    {"type": "news", "text": "[transition et resume du 2e sujet tech]"},
     {"type": "outro", "text": "Bonne journee, et a demain."}
   ]
 }
+
+IMPORTANT : Chaque article doit etre dans son propre segment "news" (un segment = un sujet). Cela permet d'inserer des pauses entre les sujets.
 
 IMPORTANT : Retourne UNIQUEMENT du JSON valide, sans commentaire ni markdown."""
 
