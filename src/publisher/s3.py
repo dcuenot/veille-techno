@@ -8,6 +8,17 @@ import boto3
 logger = logging.getLogger(__name__)
 
 
+def _get_bucket_region(s3_client: object, bucket: str) -> str:
+    """Get the actual region of an S3 bucket."""
+    try:
+        response = s3_client.get_bucket_location(Bucket=bucket)
+        location = response.get("LocationConstraint")
+        # AWS returns None for us-east-1
+        return location or "us-east-1"
+    except Exception:
+        return s3_client.meta.region_name or "us-east-1"
+
+
 def upload_to_s3(mp3_path: Path, bucket: str, key: str | None = None) -> str:
     """Upload MP3 to S3 and return the public URL."""
     s3 = boto3.client("s3")
@@ -20,7 +31,7 @@ def upload_to_s3(mp3_path: Path, bucket: str, key: str | None = None) -> str:
         ExtraArgs={"ContentType": "audio/mpeg"},
     )
 
-    region = s3.meta.region_name or "eu-west-3"
+    region = _get_bucket_region(s3, bucket)
     url = f"https://{bucket}.s3.{region}.amazonaws.com/{s3_key}"
     logger.info("Uploaded %s to %s", mp3_path.name, url)
     return url
