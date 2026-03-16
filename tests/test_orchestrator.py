@@ -226,6 +226,40 @@ def test_play_briefing_sends_tts(mock_load_config, mock_publisher_cls, tmp_path)
 
 @patch("src.orchestrator.HomeAssistantPublisher")
 @patch("src.orchestrator.load_config")
+def test_play_briefing_with_entity_override(mock_load_config, mock_publisher_cls, tmp_path):
+    from src.config import (
+        Settings, WeatherConfig, EditorConfig, AudioConfig,
+        PublisherConfig, LoggingConfig, Secrets,
+    )
+    mock_load_config.return_value = Settings(
+        timezone="Europe/Paris",
+        weather=WeatherConfig(city="Test", lat=0.0, lon=0.0),
+        editor=EditorConfig(model="claude-haiku-4-5-20251001", max_general_news=5, max_tech_news=10),
+        audio=AudioConfig(engine="polly", voice="Lea", output_dir=str(tmp_path), retention_days=7),
+        publisher=PublisherConfig(ha_media_dir=str(tmp_path / "ha"), media_player_entities=("media_player.chambre", "media_player.salle_de_bain")),
+        logging=LoggingConfig(level="INFO", log_dir=str(tmp_path / "logs")),
+        sources=(),
+        secrets=Secrets(anthropic_api_key="test", owm_api_key="test", ha_url="http://localhost:8123", ha_token="test"),
+    )
+    ha_dir = tmp_path / "ha"
+    ha_dir.mkdir(parents=True)
+    url1 = "https://bucket.s3.us-east-2.amazonaws.com/veille-techno/briefing.alexa-1.mp3"
+    (ha_dir / "latest_briefing_url.txt").write_text(url1, encoding="utf-8")
+
+    mock_publisher = MagicMock()
+    mock_publisher_cls.return_value = mock_publisher
+
+    # Override: play only on chambre
+    play_briefing(config_path=tmp_path / "settings.yaml", entities=("media_player.chambre",))
+
+    # Verify publisher was created with overridden entities
+    call_kwargs = mock_publisher_cls.call_args
+    assert call_kwargs.kwargs["media_player_entities"] == ("media_player.chambre",)
+    mock_publisher.play_tts.assert_called_once()
+
+
+@patch("src.orchestrator.HomeAssistantPublisher")
+@patch("src.orchestrator.load_config")
 def test_play_briefing_no_url_file(mock_load_config, mock_publisher_cls, tmp_path):
     from src.config import (
         Settings, WeatherConfig, EditorConfig, AudioConfig,

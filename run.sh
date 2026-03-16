@@ -175,6 +175,11 @@ crond
 while read -r CMD; do
   CMD=$(echo "$CMD" | tr -d '"')
   case "$CMD" in
+    play:*)
+      ENTITIES="${CMD#play:}"
+      echo "Received play command for entities: ${ENTITIES}"
+      cd /app && python3 -m src.orchestrator --play --entities "${ENTITIES}" --config config/settings.yaml 2>&1
+      ;;
     play)
       echo "Received play command"
       cd /app && python3 -m src.orchestrator --play --config config/settings.yaml 2>&1
