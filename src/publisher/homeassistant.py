@@ -18,13 +18,13 @@ class HomeAssistantPublisher:
         ha_media_dir: str,
         ha_url: str,
         ha_token: str,
-        media_player_entity: str,
+        media_player_entities: tuple[str, ...],
         s3_bucket: str = "",
     ) -> None:
         self.ha_media_dir = Path(ha_media_dir)
         self.ha_url = ha_url.rstrip("/")
         self.ha_token = ha_token
-        self.media_player_entity = media_player_entity
+        self.media_player_entities = media_player_entities
         self.s3_bucket = s3_bucket
 
     def publish(self, mp3_path: Path) -> Path:
@@ -54,28 +54,29 @@ class HomeAssistantPublisher:
         self._play_on_echo(s3_url)
 
     def play_tts(self, text: str) -> None:
-        """Send briefing text via notify.alexa_media TTS."""
+        """Send briefing text via notify.alexa_media TTS to all entities."""
         url = f"{self.ha_url}/api/services/notify/alexa_media"
-        try:
-            response = requests.post(
-                url,
-                headers={
-                    "Authorization": f"Bearer {self.ha_token}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "message": text,
-                    "target": self.media_player_entity,
-                    "data": {"type": "tts"},
-                },
-                timeout=30,
-            )
-            response.raise_for_status()
-            logger.info("TTS triggered on %s (%d chars)", self.media_player_entity, len(text))
-        except requests.exceptions.HTTPError:
-            logger.error("TTS failed on %s: HTTP %s", self.media_player_entity, response.status_code)
-        except requests.exceptions.RequestException:
-            logger.error("TTS failed on %s: connection error", self.media_player_entity, exc_info=True)
+        for entity in self.media_player_entities:
+            try:
+                response = requests.post(
+                    url,
+                    headers={
+                        "Authorization": f"Bearer {self.ha_token}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "message": text,
+                        "target": entity,
+                        "data": {"type": "tts"},
+                    },
+                    timeout=30,
+                )
+                response.raise_for_status()
+                logger.info("TTS triggered on %s (%d chars)", entity, len(text))
+            except requests.exceptions.HTTPError:
+                logger.error("TTS failed on %s: HTTP %s", entity, response.status_code)
+            except requests.exceptions.RequestException:
+                logger.error("TTS failed on %s: connection error", entity, exc_info=True)
 
     def fire_event(self, event_type: str, event_data: dict | None = None) -> None:
         """Fire a custom event on HA event bus."""

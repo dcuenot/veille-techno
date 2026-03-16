@@ -27,10 +27,12 @@ options:
   weather_lat: 48.8566
   weather_lon: 2.4739
   s3_bucket: ""
-  media_player_entity: "media_player.chambre"
+  media_player_entities:
+    - "media_player.chambre"
+    - "media_player.salle_de_bain"
   editor_model: "claude-haiku-4-5-20251001"
   max_general_news: 5
-  max_tech_news: 10
+  max_tech_news: 15
   log_level: "INFO"
 
 schema:
@@ -46,7 +48,8 @@ schema:
   weather_lat: float
   weather_lon: float
   s3_bucket: str
-  media_player_entity: str
+  media_player_entities:
+    - str
   editor_model: str
   max_general_news: "int(1,10)"
   max_tech_news: "int(1,20)"

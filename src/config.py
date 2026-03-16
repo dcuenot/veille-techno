@@ -33,7 +33,7 @@ class AudioConfig:
 @dataclass(frozen=True)
 class PublisherConfig:
     ha_media_dir: str
-    media_player_entity: str
+    media_player_entities: tuple[str, ...]
     s3_bucket: str = ""
 
 
@@ -104,12 +104,21 @@ def load_config(config_path: Path) -> Settings:
         ha_token=os.environ.get("HA_TOKEN", ""),
     )
 
+    pub_raw = dict(raw["publisher"])
+    # Support both single string and list for media_player_entities
+    entities = pub_raw.pop("media_player_entities", None) or pub_raw.pop("media_player_entity", None)
+    if isinstance(entities, str):
+        entities = (entities,)
+    else:
+        entities = tuple(entities or ())
+    pub_raw["media_player_entities"] = entities
+
     return Settings(
         timezone=raw["timezone"],
         weather=WeatherConfig(**raw["weather"]),
         editor=EditorConfig(**raw["editor"]),
         audio=AudioConfig(**raw["audio"]),
-        publisher=PublisherConfig(**raw["publisher"]),
+        publisher=PublisherConfig(**pub_raw),
         logging=LoggingConfig(**raw["logging"]),
         sources=sources,
         secrets=secrets,

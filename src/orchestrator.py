@@ -95,7 +95,7 @@ def run_pipeline(config_path: Path) -> None:
         ha_media_dir=settings.publisher.ha_media_dir,
         ha_url=settings.secrets.ha_url,
         ha_token=settings.secrets.ha_token,
-        media_player_entity=settings.publisher.media_player_entity,
+        media_player_entities=settings.publisher.media_player_entities,
         s3_bucket=settings.publisher.s3_bucket,
     )
 
@@ -201,7 +201,7 @@ def play_briefing(config_path: Path) -> None:
         ha_media_dir=settings.publisher.ha_media_dir,
         ha_url=settings.secrets.ha_url,
         ha_token=settings.secrets.ha_token,
-        media_player_entity=settings.publisher.media_player_entity,
+        media_player_entities=settings.publisher.media_player_entities,
         s3_bucket=settings.publisher.s3_bucket,
     )
     for i, url in enumerate(s3_urls):

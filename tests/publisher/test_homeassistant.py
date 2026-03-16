@@ -16,7 +16,7 @@ def test_publish_copies_file(tmp_path: Path):
         ha_media_dir=str(target_dir),
         ha_url="http://localhost:8123",
         ha_token="test-token",
-        media_player_entity="media_player.echo",
+        media_player_entities=("media_player.echo",),
     )
     publisher.publish(source_mp3)
     target_file = target_dir / "briefing-2026-03-12.mp3"
@@ -31,7 +31,7 @@ def test_notify_failure_calls_ha_api(mock_post: MagicMock):
         ha_media_dir="/tmp",
         ha_url="http://localhost:8123",
         ha_token="test-token",
-        media_player_entity="media_player.echo",
+        media_player_entities=("media_player.echo",),
     )
     publisher.notify_failure("Pipeline failed: API error")
     mock_post.assert_called_once()
@@ -46,7 +46,7 @@ def test_notify_failure_handles_request_exception(mock_post: MagicMock):
         ha_media_dir="/tmp",
         ha_url="http://localhost:8123",
         ha_token="test-token",
-        media_player_entity="media_player.echo",
+        media_player_entities=("media_player.echo",),
     )
     # Should not raise even when requests.post raises
     publisher.notify_failure("some error")
@@ -64,7 +64,7 @@ def test_cleanup_old_files(tmp_path: Path):
         ha_media_dir=str(media_dir),
         ha_url="http://localhost:8123",
         ha_token="test-token",
-        media_player_entity="media_player.echo",
+        media_player_entities=("media_player.echo",),
     )
     import os
     old_time = time.time() - (10 * 86400)

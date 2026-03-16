@@ -30,7 +30,10 @@ WEATHER_CITY=$(jq -r '.weather_city' "$OPTIONS_FILE")
 WEATHER_LAT=$(jq -r '.weather_lat' "$OPTIONS_FILE")
 WEATHER_LON=$(jq -r '.weather_lon' "$OPTIONS_FILE")
 S3_BUCKET=$(jq -r '.s3_bucket // ""' "$OPTIONS_FILE")
-MEDIA_PLAYER=$(jq -r '.media_player_entity' "$OPTIONS_FILE")
+# Build YAML list of media player entities
+MEDIA_PLAYERS_YAML=$(jq -r '.media_player_entities[]' "$OPTIONS_FILE" | while read -r entity; do
+  echo "    - \"${entity}\""
+done)
 EDITOR_MODEL=$(jq -r '.editor_model' "$OPTIONS_FILE")
 MAX_GENERAL=$(jq -r '.max_general_news' "$OPTIONS_FILE")
 MAX_TECH=$(jq -r '.max_tech_news' "$OPTIONS_FILE")
@@ -59,7 +62,8 @@ audio:
 
 publisher:
   ha_media_dir: "/media/veille-techno"
-  media_player_entity: "${MEDIA_PLAYER}"
+  media_player_entities:
+${MEDIA_PLAYERS_YAML}
   s3_bucket: "${S3_BUCKET}"
 
 logging:
