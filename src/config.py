@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -104,9 +105,11 @@ def load_config(config_path: Path) -> Settings:
     )
 
     pub_raw = dict(raw["publisher"])
-    # Remove legacy media_player_entities keys (now passed via CLI --entities)
-    pub_raw.pop("media_player_entities", None)
-    pub_raw.pop("media_player_entity", None)
+    # Warn and remove legacy media_player_entities keys (now passed via CLI --entities)
+    if pub_raw.pop("media_player_entities", None) or pub_raw.pop("media_player_entity", None):
+        logging.getLogger(__name__).warning(
+            "media_player_entities in config is deprecated — use play:entity1,entity2 via stdin instead"
+        )
 
     return Settings(
         timezone=raw["timezone"],
