@@ -18,7 +18,7 @@ class HomeAssistantPublisher:
         ha_media_dir: str,
         ha_url: str,
         ha_token: str,
-        media_player_entities: tuple[str, ...],
+        media_player_entities: tuple[str, ...] = (),
         s3_bucket: str = "",
     ) -> None:
         self.ha_media_dir = Path(ha_media_dir)

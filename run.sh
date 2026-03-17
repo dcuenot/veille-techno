@@ -11,9 +11,6 @@ AWS_ACCESS_KEY_ID=$(jq -r '.aws_access_key_id' "$OPTIONS_FILE")
 AWS_SECRET_ACCESS_KEY=$(jq -r '.aws_secret_access_key' "$OPTIONS_FILE")
 AWS_DEFAULT_REGION=$(jq -r '.aws_default_region' "$OPTIONS_FILE")
 OWM_API_KEY=$(jq -r '.owm_api_key' "$OPTIONS_FILE")
-SCHEDULE_HOUR=$(jq -r '.schedule_hour' "$OPTIONS_FILE")
-SCHEDULE_MINUTE=$(jq -r '.schedule_minute' "$OPTIONS_FILE")
-
 export ANTHROPIC_API_KEY
 export AWS_ACCESS_KEY_ID
 export AWS_SECRET_ACCESS_KEY
@@ -30,10 +27,6 @@ WEATHER_CITY=$(jq -r '.weather_city' "$OPTIONS_FILE")
 WEATHER_LAT=$(jq -r '.weather_lat' "$OPTIONS_FILE")
 WEATHER_LON=$(jq -r '.weather_lon' "$OPTIONS_FILE")
 S3_BUCKET=$(jq -r '.s3_bucket // ""' "$OPTIONS_FILE")
-# Build YAML list of media player entities
-MEDIA_PLAYERS_YAML=$(jq -r '.media_player_entities[]' "$OPTIONS_FILE" | while read -r entity; do
-  echo "    - \"${entity}\""
-done)
 EDITOR_MODEL=$(jq -r '.editor_model' "$OPTIONS_FILE")
 MAX_GENERAL=$(jq -r '.max_general_news' "$OPTIONS_FILE")
 MAX_TECH=$(jq -r '.max_tech_news' "$OPTIONS_FILE")
@@ -62,8 +55,6 @@ audio:
 
 publisher:
   ha_media_dir: "/media/veille-techno"
-  media_player_entities:
-${MEDIA_PLAYERS_YAML}
   s3_bucket: "${S3_BUCKET}"
 
 logging:
@@ -158,17 +149,7 @@ sources:
 YAML
 
 echo "Configuration generated"
-echo "Schedule: every day at ${SCHEDULE_HOUR}:${SCHEDULE_MINUTE}"
-
-# Cron prepares the briefing text (no TTS)
-CRON_LINE="${SCHEDULE_MINUTE} ${SCHEDULE_HOUR} * * * cd /app && ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY} AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION} OWM_API_KEY=${OWM_API_KEY} HA_URL=${HA_URL} HA_TOKEN=${HA_TOKEN} python3 -m src.orchestrator --prepare --config config/settings.yaml >> /app/logs/cron.log 2>&1"
-
-echo "${CRON_LINE}" | crontab -
-
-echo "Cron scheduled. Listening for stdin commands..."
-
-# Start cron in background
-crond
+echo "Listening for stdin commands (prepare/play triggered via HA automations)..."
 
 # Listen on stdin for commands from HA (hassio.addon_stdin)
 # Strip quotes — HA may send "play" instead of play

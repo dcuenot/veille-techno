@@ -95,7 +95,6 @@ def run_pipeline(config_path: Path) -> None:
         ha_media_dir=settings.publisher.ha_media_dir,
         ha_url=settings.secrets.ha_url,
         ha_token=settings.secrets.ha_token,
-        media_player_entities=settings.publisher.media_player_entities,
         s3_bucket=settings.publisher.s3_bucket,
     )
 
@@ -180,13 +179,14 @@ def run_pipeline(config_path: Path) -> None:
         publisher.notify_failure(f"Pipeline failed: {e}")
 
 
-def play_briefing(config_path: Path, entities: tuple[str, ...] | None = None) -> None:
+def play_briefing(config_path: Path, entities: tuple[str, ...] = ()) -> None:
     """Read saved S3 URLs and play MP3 chunks via notify.alexa_media audio tags."""
     settings = load_config(config_path)
     _setup_logging(settings)
 
-    # Use CLI-provided entities if given, otherwise fall back to config
-    target_entities = entities or settings.publisher.media_player_entities
+    if not entities:
+        logger.error("No entities specified — use --entities or play:entity1,entity2")
+        return
 
     url_path = Path(settings.publisher.ha_media_dir) / "latest_briefing_url.txt"
     if not url_path.exists():
@@ -204,7 +204,7 @@ def play_briefing(config_path: Path, entities: tuple[str, ...] | None = None) ->
         ha_media_dir=settings.publisher.ha_media_dir,
         ha_url=settings.secrets.ha_url,
         ha_token=settings.secrets.ha_token,
-        media_player_entities=target_entities,
+        media_player_entities=entities,
         s3_bucket=settings.publisher.s3_bucket,
     )
     for i, url in enumerate(s3_urls):
@@ -280,7 +280,7 @@ def main() -> None:
     if args.dry_run:
         run_dry_run(args.config)
     elif args.play:
-        entities = tuple(e.strip() for e in args.entities.split(",")) if args.entities else None
+        entities = tuple(e.strip() for e in args.entities.split(",")) if args.entities else ()
         play_briefing(args.config, entities=entities)
     elif args.prepare:
         run_pipeline(args.config)

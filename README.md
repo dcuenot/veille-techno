@@ -8,7 +8,7 @@ Briefing matinal audio automatise — collecte de news, editorialisation par IA,
 
 - Home Assistant OS sur Raspberry Pi (ou autre)
 - Alexa Media Player installe via HACS
-- Cles API : Anthropic, AWS (Polly), OpenWeatherMap
+- Cles API : Anthropic, AWS (Polly + S3), OpenWeatherMap
 
 ### Installation
 
@@ -30,41 +30,104 @@ git clone <repo-url> veille_techno
 | Parametre | Description |
 |-----------|-------------|
 | `anthropic_api_key` | Cle API Anthropic (console.anthropic.com) |
-| `aws_access_key_id` | AWS IAM avec policy AmazonPollyReadOnlyAccess |
+| `aws_access_key_id` | AWS IAM avec policy AmazonPollyReadOnlyAccess + S3 |
 | `aws_secret_access_key` | Secret AWS |
 | `owm_api_key` | Cle OpenWeatherMap (gratuit) |
-| `schedule_hour` / `schedule_minute` | Heure de generation (defaut: 7h30) |
 | `weather_city` / `weather_lat` / `weather_lon` | Localisation meteo |
-| `media_player_entity` | Entite Echo (ex: media_player.echo_salon) |
+| `s3_bucket` | Bucket S3 pour heberger les MP3 |
 | `polly_voice` | Voix Polly (defaut: Lea) |
+| `editor_model` | Modele Claude (defaut: claude-haiku-4-5-20251001) |
+| `max_general_news` / `max_tech_news` | Nombre de news par categorie |
 
-### Automatisation HA (lecture sur Echo)
+### Commandes stdin
 
-Creer une automatisation qui lit le MP3 quand le briefing est pret :
+L'add-on ecoute les commandes via `hassio.addon_stdin` :
+
+| Commande | Description |
+|----------|-------------|
+| `prepare` | Collecte les news, genere le briefing audio, upload sur S3 |
+| `play` | Joue le briefing sur les entites configurees |
+| `play:entity1,entity2` | Joue sur des entites specifiques (override config) |
+
+### Automatisations HA
+
+#### Prerequis : helpers HA
+
+Creer deux helpers dans **Parametres > Appareils & services > Helpers** :
+
+- `input_datetime.iphone_alarm_datetime` (heure uniquement, pas de date)
+- `input_boolean.iphone_alarm_turn_on`
+
+Ces helpers peuvent etre mis a jour via un Raccourci iOS qui envoie l'heure d'alarme a HA.
+
+#### 1. Prepare (30 min avant le reveil)
 
 ```yaml
-automation:
-  - alias: "Briefing matinal"
-    trigger:
-      - platform: time
-        at: "08:00:00"
-    condition:
-      - condition: template
-        value_template: >
-          {{ is_state('media_player.echo_salon', 'idle') }}
-    action:
-      - service: media_player.volume_set
-        target:
-          entity_id: media_player.echo_salon
-        data:
-          volume_level: 0.5
-      - service: media_player.play_media
-        target:
-          entity_id: media_player.echo_salon
-        data:
-          media_content_id: >
-            media-source://media_source/local/veille-techno/briefing-{{ now().strftime('%Y-%m-%d') }}.mp3
-          media_content_type: music
+alias: "Veille Techno - Prepare"
+trigger:
+  - platform: template
+    value_template: >
+      {% set alarm = states('input_datetime.iphone_alarm_datetime').split(':') %}
+      {% set alarm_min = alarm[0]|int * 60 + alarm[1]|int %}
+      {% set now_min = now().hour * 60 + now().minute %}
+      {{ now_min == alarm_min - 30 }}
+condition:
+  - condition: state
+    entity_id: input_boolean.iphone_alarm_turn_on
+    state: "on"
+action:
+  - service: hassio.addon_stdin
+    data:
+      addon: local_veille_techno
+      input: prepare
+```
+
+#### 2. Play (a l'heure du reveil)
+
+```yaml
+alias: "Veille Techno - Play"
+trigger:
+  - platform: time
+    at: input_datetime.iphone_alarm_datetime
+condition:
+  - condition: state
+    entity_id: input_boolean.iphone_alarm_turn_on
+    state: "on"
+action:
+  - service: media_player.volume_set
+    target:
+      entity_id:
+        - media_player.chambre
+        - media_player.salle_de_bain
+    data:
+      volume_level: 0.5
+  - service: hassio.addon_stdin
+    data:
+      addon: local_veille_techno
+      input: "play:media_player.chambre,media_player.salle_de_bain"
+```
+
+#### 3. Spotify apres le briefing
+
+```yaml
+alias: "Veille Techno - Spotify"
+trigger:
+  - platform: event
+    event_type: veille_techno_play_done
+action:
+  - service: media_player.volume_set
+    target:
+      entity_id:
+        - media_player.chambre
+        - media_player.salle_de_bain
+    data:
+      volume_level: 0.3
+  - service: media_player.play_media
+    target:
+      entity_id: media_player.chambre
+    data:
+      media_content_id: "Mes favoris sur Spotify"
+      media_content_type: custom
 ```
 
 ## Developpement local

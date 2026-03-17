@@ -24,8 +24,6 @@ audio:
   retention_days: 7
 publisher:
   ha_media_dir: /config/www/briefings/
-  media_player_entities:
-    - media_player.echo_salon
 logging:
   level: INFO
   log_dir: /tmp/logs/
@@ -72,8 +70,6 @@ audio:
   retention_days: 7
 publisher:
   ha_media_dir: /tmp/
-  media_player_entities:
-    - media_player.test
 logging:
   level: INFO
   log_dir: /tmp/logs/

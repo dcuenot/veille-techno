@@ -20,16 +20,11 @@ options:
   aws_secret_access_key: ""
   aws_default_region: "eu-west-3"
   owm_api_key: ""
-  schedule_hour: 7
-  schedule_minute: 30
   polly_voice: "Lea"
   weather_city: "Fontenay-sous-Bois"
   weather_lat: 48.8566
   weather_lon: 2.4739
   s3_bucket: ""
-  media_player_entities:
-    - "media_player.chambre"
-    - "media_player.salle_de_bain"
   editor_model: "claude-haiku-4-5-20251001"
   max_general_news: 5
   max_tech_news: 15
@@ -41,15 +36,11 @@ schema:
   aws_secret_access_key: password
   aws_default_region: str
   owm_api_key: password
-  schedule_hour: "int(0,23)"
-  schedule_minute: "int(0,59)"
   polly_voice: str
   weather_city: str
   weather_lat: float
   weather_lon: float
   s3_bucket: str
-  media_player_entities:
-    - str
   editor_model: str
   max_general_news: "int(1,10)"
   max_tech_news: "int(1,20)"

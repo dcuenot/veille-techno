@@ -19,9 +19,6 @@ audio:
 
 publisher:
   ha_media_dir: /config/www/briefings/
-  media_player_entities:
-    - media_player.chambre
-    - media_player.salle_de_bain
 
 logging:
   level: INFO

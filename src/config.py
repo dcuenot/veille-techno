@@ -33,7 +33,6 @@ class AudioConfig:
 @dataclass(frozen=True)
 class PublisherConfig:
     ha_media_dir: str
-    media_player_entities: tuple[str, ...]
     s3_bucket: str = ""
 
 
@@ -105,13 +104,9 @@ def load_config(config_path: Path) -> Settings:
     )
 
     pub_raw = dict(raw["publisher"])
-    # Support both single string and list for media_player_entities
-    entities = pub_raw.pop("media_player_entities", None) or pub_raw.pop("media_player_entity", None)
-    if isinstance(entities, str):
-        entities = (entities,)
-    else:
-        entities = tuple(entities or ())
-    pub_raw["media_player_entities"] = entities
+    # Remove legacy media_player_entities keys (now passed via CLI --entities)
+    pub_raw.pop("media_player_entities", None)
+    pub_raw.pop("media_player_entity", None)
 
     return Settings(
         timezone=raw["timezone"],
