@@ -212,6 +212,9 @@ def play_briefing(config_path: Path, entities: tuple[str, ...] = ()) -> None:
         publisher.play_tts(message)
         logger.info("Chunk %d/%d triggered", i + 1, len(s3_urls))
 
+    logger.info("Waiting for playback to finish...")
+    publisher.wait_for_playback_done()
+
     publisher.fire_event("veille_techno_play_done", {"chunks": len(s3_urls)})
     logger.info("Play complete, event fired")
 

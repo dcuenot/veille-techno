@@ -78,6 +78,37 @@ class HomeAssistantPublisher:
         except requests.exceptions.RequestException:
             logger.error("TTS failed on %s: connection error", targets, exc_info=True)
 
+    def wait_for_playback_done(self, poll_interval: int = 10, timeout: int = 900) -> None:
+        """Poll media_player states until all entities stop playing."""
+        if not self.media_player_entities:
+            return
+        # Wait a few seconds for playback to actually start
+        time.sleep(5)
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            all_idle = True
+            for entity in self.media_player_entities:
+                url = f"{self.ha_url}/api/states/{entity}"
+                try:
+                    response = requests.get(
+                        url,
+                        headers={"Authorization": f"Bearer {self.ha_token}"},
+                        timeout=10,
+                    )
+                    response.raise_for_status()
+                    state = response.json().get("state", "unknown")
+                    if state == "playing":
+                        all_idle = False
+                        break
+                except Exception:
+                    logger.warning("Failed to poll state of %s", entity)
+                    break
+            if all_idle:
+                logger.info("All media players done playing")
+                return
+            time.sleep(poll_interval)
+        logger.warning("Timed out waiting for playback to finish (%ds)", timeout)
+
     def fire_event(self, event_type: str, event_data: dict | None = None) -> None:
         """Fire a custom event on HA event bus."""
         url = f"{self.ha_url}/api/events/{event_type}"
