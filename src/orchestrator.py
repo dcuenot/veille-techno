@@ -29,6 +29,17 @@ logger = logging.getLogger("veille_techno")
 MIN_ARTICLES = 5
 
 
+def _get_mp3_duration(mp3_path: Path) -> float:
+    """Get duration of an MP3 file in seconds using ffprobe."""
+    import subprocess
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", str(mp3_path)],
+        capture_output=True, text=True, timeout=30,
+    )
+    return float(result.stdout.strip())
+
+
 def _setup_logging(settings: Settings) -> None:
     """Configure rotating file + console logging."""
     root_logger = logging.getLogger()
@@ -151,7 +162,8 @@ def run_pipeline(config_path: Path) -> None:
         logger.info("Step 5: Converting for Alexa...")
         start = time.monotonic()
         alexa_chunks = convert_for_alexa(mp3_path)
-        logger.info("Converted in %.1fs (%d chunk(s))", time.monotonic() - start, len(alexa_chunks))
+        total_duration = sum(_get_mp3_duration(p) for p in alexa_chunks)
+        logger.info("Converted in %.1fs (%d chunk(s), %.0fs total)", time.monotonic() - start, len(alexa_chunks), total_duration)
 
         logger.info("Step 6: Uploading to S3...")
         start = time.monotonic()
@@ -166,11 +178,13 @@ def run_pipeline(config_path: Path) -> None:
         cleanup_s3(settings.publisher.s3_bucket)
         logger.info("Uploaded %d chunk(s) in %.1fs", len(s3_urls), time.monotonic() - start)
 
-        # Save S3 URLs for play command (one per line)
+        # Save S3 URLs and duration for play command
         url_path = Path(settings.publisher.ha_media_dir) / "latest_briefing_url.txt"
         url_path.parent.mkdir(parents=True, exist_ok=True)
         url_path.write_text("\n".join(s3_urls), encoding="utf-8")
-        logger.info("S3 URLs saved to %s", url_path)
+        duration_path = Path(settings.publisher.ha_media_dir) / "latest_briefing_duration.txt"
+        duration_path.write_text(str(int(total_duration)), encoding="utf-8")
+        logger.info("S3 URLs saved to %s (duration: %ds)", url_path, int(total_duration))
 
         logger.info("=== Prepare complete ===")
 
@@ -207,13 +221,25 @@ def play_briefing(config_path: Path, entities: tuple[str, ...] = ()) -> None:
         media_player_entities=entities,
         s3_bucket=settings.publisher.s3_bucket,
     )
+    # Read saved duration
+    duration_path = Path(settings.publisher.ha_media_dir) / "latest_briefing_duration.txt"
+    briefing_duration = 0
+    if duration_path.exists():
+        try:
+            briefing_duration = int(duration_path.read_text(encoding="utf-8").strip())
+        except (ValueError, OSError):
+            logger.warning("Could not read briefing duration, will not wait")
+
     for i, url in enumerate(s3_urls):
         message = f"<audio src='{url}'/>"
         publisher.play_tts(message)
         logger.info("Chunk %d/%d triggered", i + 1, len(s3_urls))
 
-    logger.info("Waiting for playback to finish...")
-    publisher.wait_for_playback_done()
+    if briefing_duration > 0:
+        logger.info("Waiting %ds for playback to finish...", briefing_duration)
+        time.sleep(briefing_duration)
+    else:
+        logger.warning("No duration info — firing event immediately")
 
     publisher.fire_event("veille_techno_play_done", {"chunks": len(s3_urls)})
     logger.info("Play complete, event fired")

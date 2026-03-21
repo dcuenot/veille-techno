@@ -5,6 +5,7 @@ from unittest.mock import patch, MagicMock
 from src.orchestrator import run_pipeline, run_dry_run, play_briefing, collect_all, _build_sources
 
 
+@patch("src.orchestrator._get_mp3_duration", return_value=120.0)
 @patch("src.orchestrator.cleanup_s3")
 @patch("src.orchestrator.upload_to_s3")
 @patch("src.orchestrator.convert_for_alexa")
@@ -18,7 +19,7 @@ from src.orchestrator import run_pipeline, run_dry_run, play_briefing, collect_a
 def test_pipeline_runs_end_to_end(
     mock_load_config, mock_collect, mock_weather, mock_ssml,
     mock_briefing, mock_publisher_cls, mock_polly_cls,
-    mock_convert, mock_upload, mock_cleanup_s3, tmp_path,
+    mock_convert, mock_upload, mock_cleanup_s3, mock_duration, tmp_path,
 ):
     from src.collector.base import Article
     from src.editor.briefing import BriefingSegment
